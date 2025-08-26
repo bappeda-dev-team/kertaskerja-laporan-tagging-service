@@ -90,9 +90,11 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 							pokin.tahun,
 							pokin.jenis_pohon,
 							pokin.kode_opd,
+                            opd.nama_opd,
 							tag.keterangan_tagging
 						   FROM
 							tb_pohon_kinerja pokin
+						   JOIN tb_operasional_daerah opd ON opd.kode_opd = pokin.kode_opd
 						   JOIN tb_tagging_pokin tag ON tag.id_pokin = pokin.id
 							AND pokin.tahun = ?
 							AND pokin.kode_opd != ""
@@ -107,7 +109,7 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 	var listPokin []Pokin
 	for rows.Next() {
 		var po Pokin
-		if err := rows.Scan(&po.IdPohon, &po.NamaPohon, &po.Tahun, &po.JenisPohon, &po.KodeOpd, &po.KeteranganTagging); err != nil {
+		if err := rows.Scan(&po.IdPohon, &po.NamaPohon, &po.Tahun, &po.JenisPohon, &po.KodeOpd, &po.NamaOpd, &po.KeteranganTagging); err != nil {
 			http.Error(w, "scan error: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -118,12 +120,13 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 	// bungkus
 	tagPokin := TagPokin{
 		NamaTagging:   tag,
+		Tahun:         Tahun(tahun),
 		PohonKinerjas: listPokin,
 	}
 
 	response := Response{
 		Status:  http.StatusOK,
-		Message: "Laporan Cascading Pemda Tahun 2025",
+		Message: "Laporan Tagging Pohon Kinerja",
 		Data:    []TagPokin{tagPokin},
 	}
 
@@ -131,11 +134,18 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"LAPORAN TAGGING POHON KINERJA UP"}`))
+}
+
 func main() {
 	log.Print("LAPORAN TAGGING POHON KINERJA")
 
 	initDB()
 
+	http.HandleFunc("/health", healthCheckHandler)
 	http.HandleFunc("/laporan/tagging_pokin", laporanHandler)
 	http.ListenAndServe(":8080", nil)
 }
