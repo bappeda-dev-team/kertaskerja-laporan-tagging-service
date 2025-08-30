@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -59,6 +60,123 @@ func initDB() {
 	log.Printf("Idle Connections: %d", db.Stats().Idle)
 }
 
+func getPelaksanaanRenaksi(idRekin string) (WaktuPelaksanaan, error) {
+	query := `
+		SELECT renaksi.bulan, renaksi.bobot
+		FROM tb_pelaksanaan_rencana_aksi renaksi
+		JOIN tb_rencana_aksi ON tb_rencana_aksi.id = renaksi.rencana_aksi_id
+		JOIN tb_rencana_kinerja rekin ON tb_rencana_aksi.rencana_kinerja_id = rekin.id
+		WHERE rekin.id = ?`
+
+	rows, err := db.Query(query, idRekin)
+	if err != nil {
+		return WaktuPelaksanaan{}, fmt.Errorf("query error: %w", err)
+	}
+	defer rows.Close()
+
+	var result WaktuPelaksanaan
+
+	for rows.Next() {
+		var bulan, bobot int
+		if err := rows.Scan(&bulan, &bobot); err != nil {
+			log.Printf("[ERROR] scan renaksi error: %v", err)
+			return WaktuPelaksanaan{}, fmt.Errorf("scan error: %w", err)
+		}
+
+		switch {
+		case bulan >= 1 && bulan <= 3:
+			result.Tw1 += bobot
+		case bulan >= 4 && bulan <= 6:
+			result.Tw2 += bobot
+		case bulan >= 7 && bulan <= 9:
+			result.Tw3 += bobot
+		case bulan >= 10 && bulan <= 12:
+			result.Tw4 += bobot
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return WaktuPelaksanaan{}, fmt.Errorf("rows error: %w", err)
+	}
+
+	return result, nil
+}
+
+func getRencanaKinerjaPokin(idPokin int) ([]RencanaKinerjaAsn, error) {
+	query := `
+		SELECT rekin.id,
+		       rekin.nama_rencana_kinerja,
+		       pegawai.nama,
+		       pegawai.nip,
+		       subkegiatan.kode_subkegiatan,
+		       subkegiatan.nama_subkegiatan,
+		       rinbel.anggaran,
+               rekin.catatan
+		FROM tb_rencana_kinerja rekin
+		JOIN tb_pegawai pegawai ON pegawai.nip = rekin.pegawai_id
+		JOIN tb_subkegiatan_terpilih sub_rekin ON sub_rekin.rekin_id = rekin.id
+		LEFT JOIN tb_subkegiatan subkegiatan ON subkegiatan.kode_subkegiatan = sub_rekin.kode_subkegiatan
+		JOIN tb_rencana_aksi renaksi ON renaksi.rencana_kinerja_id = rekin.id
+		JOIN tb_rincian_belanja rinbel ON rinbel.renaksi_id = renaksi.id
+		JOIN tb_pohon_kinerja pokin ON rekin.id_pohon = pokin.id
+		WHERE pokin.id = ?`
+
+	rows, err := db.Query(query, idPokin)
+	if err != nil {
+		return nil, fmt.Errorf("query error: %w", err)
+	}
+	defer rows.Close()
+
+	var rekins []RencanaKinerjaAsn
+
+	for rows.Next() {
+		var rekin RencanaKinerjaAsn
+		var kodeSub, namaSub sql.NullString
+		var pagu sql.NullInt64
+
+		if err := rows.Scan(
+			&rekin.IdRekin,
+			&rekin.RencanaKinerja,
+			&rekin.NamaPelaksana,
+			&rekin.NIPPelaksana,
+			&kodeSub,
+			&namaSub,
+			&pagu,
+			&rekin.Catatan,
+		); err != nil {
+			log.Printf("[ERROR] scan rekin error: %v", err)
+			return nil, fmt.Errorf("scan error: %w", err)
+		}
+
+		// Handle NULL dengan NullString/NullInt64
+		if kodeSub.Valid {
+			rekin.KodeSubkegiatan = kodeSub.String
+		}
+		if namaSub.Valid {
+			rekin.NamaSubkegiatan = namaSub.String
+		}
+		if pagu.Valid {
+			rekin.Pagu = Pagu(pagu.Int64)
+		}
+
+		// renaksi / tahapan
+		pelaksanaanRenaksi, err := getPelaksanaanRenaksi(rekin.IdRekin)
+		if err != nil {
+			log.Printf("[ERROR] Get Renaksi error: %v", err)
+			return nil, fmt.Errorf("getRPelaksanaanRenaksi: %w", err)
+		}
+		rekin.TahapanPelaksanaan = pelaksanaanRenaksi
+
+		rekins = append(rekins, rekin)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	return rekins, nil
+}
+
 func laporanHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed, pakai GET", http.StatusMethodNotAllowed)
@@ -91,7 +209,8 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 							pokin.jenis_pohon,
 							pokin.kode_opd,
                             opd.nama_opd,
-							tag.keterangan_tagging
+							tag.keterangan_tagging,
+                            pokin.status
 						   FROM
 							tb_pohon_kinerja pokin
 						   JOIN tb_operasional_daerah opd ON opd.kode_opd = pokin.kode_opd
@@ -109,10 +228,18 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 	var listPokin []Pokin
 	for rows.Next() {
 		var po Pokin
-		if err := rows.Scan(&po.IdPohon, &po.NamaPohon, &po.Tahun, &po.JenisPohon, &po.KodeOpd, &po.NamaOpd, &po.KeteranganTagging); err != nil {
+		if err := rows.Scan(&po.IdPohon, &po.NamaPohon, &po.Tahun, &po.JenisPohon, &po.KodeOpd, &po.NamaOpd, &po.KeteranganTagging, &po.Status); err != nil {
 			http.Error(w, "scan error: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		sasarans, err := getRencanaKinerjaPokin(po.IdPohon)
+		if err != nil {
+			log.Printf("[ERROR] Get Rekin Pokin %d error: %v", po.IdPohon, err)
+			return
+		}
+
+		po.RencanaKinerjas = sasarans
 
 		listPokin = append(listPokin, po)
 	}
