@@ -104,7 +104,7 @@ func getPelaksanaanRenaksi(idRekin string) (WaktuPelaksanaan, error) {
 
 func getRencanaKinerjaPokin(idPokin int) ([]RencanaKinerjaAsn, error) {
 	query := `
-		SELECT rekin.id,
+		SELECT DISTINCT rekin.id,
 		       rekin.nama_rencana_kinerja,
 		       pegawai.nama,
 		       pegawai.nip,
