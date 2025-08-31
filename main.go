@@ -113,13 +113,13 @@ func getRencanaKinerjaPokin(idPokin int) ([]RencanaKinerjaAsn, error) {
 		       rinbel.anggaran,
                rekin.catatan
 		FROM tb_rencana_kinerja rekin
-		JOIN tb_pegawai pegawai ON pegawai.nip = rekin.pegawai_id
-		JOIN tb_subkegiatan_terpilih sub_rekin ON sub_rekin.rekin_id = rekin.id
-		LEFT JOIN tb_subkegiatan subkegiatan ON subkegiatan.kode_subkegiatan = sub_rekin.kode_subkegiatan
-		JOIN tb_rencana_aksi renaksi ON renaksi.rencana_kinerja_id = rekin.id
-		JOIN tb_rincian_belanja rinbel ON rinbel.renaksi_id = renaksi.id
+		JOIN tb_pegawai pegawai ON pegawai.nip = rekin.pegawai_id WHERE pegawai.kode_opd = rekin.kode_opd
 		JOIN tb_pohon_kinerja pokin ON rekin.id_pohon = pokin.id
-		WHERE pokin.id = ?`
+		LEFT JOIN tb_subkegiatan_terpilih sub_rekin ON sub_rekin.rekin_id = rekin.id
+		LEFT JOIN tb_subkegiatan subkegiatan ON subkegiatan.kode_subkegiatan = sub_rekin.kode_subkegiatan
+		LEFT JOIN tb_rencana_aksi renaksi ON renaksi.rencana_kinerja_id = rekin.id
+		LEFT JOIN tb_rincian_belanja rinbel ON rinbel.renaksi_id = renaksi.id
+		WHERE rekin.kode_opd = pokin.kode_opd AND pokin.id = ?`
 
 	rows, err := db.Query(query, idPokin)
 	if err != nil {
