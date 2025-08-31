@@ -102,7 +102,7 @@ func getPelaksanaanRenaksi(idRekin string) (WaktuPelaksanaan, error) {
 	return result, nil
 }
 
-func getRencanaKinerjaPokin(idPokin int) ([]RencanaKinerjaAsn, error) {
+func getRencanaKinerjaPokin(idPokin int) ([]PelaksanaPokin, error) {
 	query := `
 		SELECT DISTINCT rekin.id,
 		       rekin.nama_rencana_kinerja,
@@ -113,7 +113,7 @@ func getRencanaKinerjaPokin(idPokin int) ([]RencanaKinerjaAsn, error) {
 		       rinbel.anggaran,
                rekin.catatan
 		FROM tb_rencana_kinerja rekin
-		JOIN tb_pegawai pegawai ON pegawai.nip = rekin.pegawai_id WHERE pegawai.kode_opd = rekin.kode_opd
+		JOIN tb_pegawai pegawai ON pegawai.nip = rekin.pegawai_id
 		JOIN tb_pohon_kinerja pokin ON rekin.id_pohon = pokin.id
 		LEFT JOIN tb_subkegiatan_terpilih sub_rekin ON sub_rekin.rekin_id = rekin.id
 		LEFT JOIN tb_subkegiatan subkegiatan ON subkegiatan.kode_subkegiatan = sub_rekin.kode_subkegiatan
@@ -127,7 +127,7 @@ func getRencanaKinerjaPokin(idPokin int) ([]RencanaKinerjaAsn, error) {
 	}
 	defer rows.Close()
 
-	var rekins []RencanaKinerjaAsn
+	pelaksanaRekins := make(map[string]*PelaksanaPokin)
 
 	for rows.Next() {
 		var rekin RencanaKinerjaAsn
@@ -167,14 +167,30 @@ func getRencanaKinerjaPokin(idPokin int) ([]RencanaKinerjaAsn, error) {
 		}
 		rekin.TahapanPelaksanaan = pelaksanaanRenaksi
 
-		rekins = append(rekins, rekin)
+		key := rekin.NIPPelaksana + "_" + rekin.NamaPelaksana
+
+		if _, ok := pelaksanaRekins[key]; !ok {
+			pelaksanaRekins[key] = &PelaksanaPokin{
+				NamaPelaksana:   rekin.NamaPelaksana,
+				NIPPelaksana:    rekin.NIPPelaksana,
+				RencanaKinerjas: []RencanaKinerjaAsn{},
+			}
+		}
+
+		pelaksanaRekins[key].RencanaKinerjas = append(pelaksanaRekins[key].RencanaKinerjas, rekin)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("rows error: %w", err)
 	}
 
-	return rekins, nil
+	// convert map ke slice
+	var pelaksanas []PelaksanaPokin
+	for _, p := range pelaksanaRekins {
+		pelaksanas = append(pelaksanas, *p)
+	}
+
+	return pelaksanas, nil
 }
 
 func laporanHandler(w http.ResponseWriter, r *http.Request) {
@@ -233,13 +249,13 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		sasarans, err := getRencanaKinerjaPokin(po.IdPohon)
+		pelaksanas, err := getRencanaKinerjaPokin(po.IdPohon)
 		if err != nil {
 			log.Printf("[ERROR] Get Rekin Pokin %d error: %v", po.IdPohon, err)
 			return
 		}
 
-		po.RencanaKinerjas = sasarans
+		po.Pelaksanas = pelaksanas
 
 		listPokin = append(listPokin, po)
 	}

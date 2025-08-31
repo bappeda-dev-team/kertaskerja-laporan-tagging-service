@@ -18,15 +18,21 @@ type TagPokin struct {
 }
 
 type Pokin struct {
-	IdPohon           int                 `json:"id_pohon"`
-	Tahun             Tahun               `json:"tahun"`
-	NamaPohon         string              `json:"nama_pohon"`
-	KodeOpd           string              `json:"kode_opd"`
-	NamaOpd           string              `json:"nama_opd"`
-	JenisPohon        JenisPohon          `json:"jenis_pohon"`
-	KeteranganTagging string              `json:"keterangan_tagging"`
-	Status            string              `json:"status"`
-	RencanaKinerjas   []RencanaKinerjaAsn `json:"rencana_kinerjas"`
+	IdPohon           int              `json:"id_pohon"`
+	Tahun             Tahun            `json:"tahun"`
+	NamaPohon         string           `json:"nama_pohon"`
+	KodeOpd           string           `json:"kode_opd"`
+	NamaOpd           string           `json:"nama_opd"`
+	JenisPohon        JenisPohon       `json:"jenis_pohon"`
+	KeteranganTagging string           `json:"keterangan_tagging"`
+	Status            string           `json:"status"`
+	Pelaksanas        []PelaksanaPokin `json:"pelaksanas"`
+}
+
+type PelaksanaPokin struct {
+	NamaPelaksana   string              `json:"nama_pelaksana"`
+	NIPPelaksana    string              `json:"nip_pelaksana"`
+	RencanaKinerjas []RencanaKinerjaAsn `json:"rencana_kinerjas"`
 }
 
 type Subkegiatan struct {
