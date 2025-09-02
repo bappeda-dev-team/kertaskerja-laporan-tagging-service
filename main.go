@@ -233,7 +233,7 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 						   JOIN tb_tagging_pokin tag ON tag.id_pokin = pokin.id
 							AND pokin.tahun = ?
 							AND pokin.kode_opd != ""
-                            AND pokin.status = 'pokin dari pemda'
+                            AND pokin.status in ("pokin dari pemda", "")
                            WHERE tag.nama_tagging = ?`, tahun, tag)
 	if err != nil {
 		http.Error(w, "query error: "+err.Error(), http.StatusInternalServerError)
