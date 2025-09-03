@@ -29,8 +29,8 @@ func initDB() {
 	}
 
 	log.Printf("koneksi ke database berhasil")
-	db.SetMaxOpenConns(50)
-	db.SetMaxIdleConns(25)
+	db.SetMaxOpenConns(70)
+	db.SetMaxIdleConns(300)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	db.SetConnMaxLifetime(60 * time.Minute)
 
