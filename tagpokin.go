@@ -27,6 +27,7 @@ type Pokin struct {
 	KeteranganTagging string           `json:"keterangan_tagging"`
 	Status            string           `json:"status"`
 	Pelaksanas        []PelaksanaPokin `json:"pelaksanas"`
+	Keterangan        string           `json:"keterangan"`
 }
 
 type PelaksanaPokin struct {

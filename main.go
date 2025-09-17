@@ -226,7 +226,8 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 							pokin.kode_opd,
                             opd.nama_opd,
 							tag.keterangan_tagging,
-                            pokin.status
+                            pokin.status,
+                            pokin.keterangan
 						   FROM
 							tb_pohon_kinerja pokin
 						   JOIN tb_operasional_daerah opd ON opd.kode_opd = pokin.kode_opd
@@ -245,7 +246,7 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 	var listPokin []Pokin
 	for rows.Next() {
 		var po Pokin
-		if err := rows.Scan(&po.IdPohon, &po.NamaPohon, &po.Tahun, &po.JenisPohon, &po.KodeOpd, &po.NamaOpd, &po.KeteranganTagging, &po.Status); err != nil {
+		if err := rows.Scan(&po.IdPohon, &po.NamaPohon, &po.Tahun, &po.JenisPohon, &po.KodeOpd, &po.NamaOpd, &po.KeteranganTagging, &po.Status, &po.Keterangan); err != nil {
 			http.Error(w, "scan error: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
