@@ -245,10 +245,33 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 	// List Pokin
 	var listPokin []Pokin
 	for rows.Next() {
-		var po Pokin
-		if err := rows.Scan(&po.IdPohon, &po.NamaPohon, &po.Tahun, &po.JenisPohon, &po.KodeOpd, &po.NamaOpd, &po.KeteranganTagging, &po.Status, &po.Keterangan); err != nil {
+		var (
+			idPohon           int
+			namaPohon         sql.NullString
+			tahun             sql.NullInt64
+			jenisPohon        sql.NullString
+			kodeOpd           sql.NullString
+			namaOpd           sql.NullString
+			keteranganTagging sql.NullString
+			status            sql.NullString
+			keterangan        sql.NullString
+		)
+
+		if err := rows.Scan(&idPohon, &namaPohon, &tahun, &jenisPohon, &kodeOpd, &namaOpd, &keteranganTagging, &status, &keterangan); err != nil {
 			http.Error(w, "scan error: "+err.Error(), http.StatusInternalServerError)
 			return
+		}
+
+		po := Pokin{
+			IdPohon:           idPohon,
+			NamaPohon:         toStr(namaPohon),
+			Tahun:             Tahun(tahunToInt(tahun)),
+			JenisPohon:        JenisPohon(toStr(jenisPohon)),
+			KodeOpd:           toStr(kodeOpd),
+			NamaOpd:           toStr(namaOpd),
+			KeteranganTagging: toStr(keteranganTagging),
+			Status:            toStr(status),
+			Keterangan:        toStr(keterangan),
 		}
 
 		pelaksanas, err := getRencanaKinerjaPokin(po.IdPohon)
@@ -256,12 +279,10 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[ERROR] Get Rekin Pokin %d error: %v", po.IdPohon, err)
 			return
 		}
-
 		po.Pelaksanas = pelaksanas
 
 		listPokin = append(listPokin, po)
 	}
-
 	// bungkus
 	tagPokin := TagPokin{
 		NamaTagging:   tag,
@@ -315,4 +336,21 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// helper convert null to string
+func toStr(ns sql.NullString) string {
+	if ns.Valid {
+		return ns.String
+	}
+	return ""
+}
+
+// convert null int to int
+// -1 jika null (dipakai dalam tahun)
+func tahunToInt(ni sql.NullInt64) int {
+	if ni.Valid {
+		return int(ni.Int64)
+	}
+	return -1
 }
