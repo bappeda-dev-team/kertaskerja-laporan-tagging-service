@@ -6,9 +6,9 @@ type Keterangan string
 type Pagu int
 
 type Response struct {
-	Status  int        `json:"status"`
-	Message string     `json:"message"`
-	Data    []TagPokin `json:"data"`
+	Status  int         `json:"status"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data"`
 }
 
 type TagPokin struct {
@@ -18,6 +18,8 @@ type TagPokin struct {
 }
 
 type Pokin struct {
+	KodeProgramUnggulan string        `json:"kode_program_unggulan,omitempty"`
+	IdTagging         int              `json:"id_tagging,omitempty"`
 	IdPohon           int              `json:"id_pohon"`
 	Tahun             Tahun            `json:"tahun"`
 	NamaPohon         string           `json:"nama_pohon"`
@@ -28,6 +30,23 @@ type Pokin struct {
 	Status            string           `json:"status"`
 	Pelaksanas        []PelaksanaPokin `json:"pelaksanas"`
 	Keterangan        string           `json:"keterangan"`
+	Indikator         []IndikatorPohon  `json:"indikator,omitempty"`
+}
+
+type IndikatorPohon struct {
+	IdIndikator string            `json:"id_indikator"`
+	IdPokin     string            `json:"id_pokin,omitempty"`
+	Indikator   string            `json:"nama_indikator"`
+	Kode        string            `json:"kode"`
+	Target      []TargetIndikator `json:"targets"`
+}
+
+type TargetIndikator struct {
+	IdTarget    string `json:"id_target"`
+	IndikatorId string `json:"indikator_id"`
+	Target      string `json:"target"`
+	Satuan      string `json:"satuan"`
+	Tahun       int    `json:"tahun,omitempty"`
 }
 
 type PelaksanaPokin struct {
