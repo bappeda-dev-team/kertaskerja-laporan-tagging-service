@@ -129,6 +129,7 @@ func getRencanaKinerjaPokin(idPokin int) ([]PelaksanaPokin, error) {
 	defer rows.Close()
 
 	pelaksanaRekins := make(map[string]*PelaksanaPokin)
+	seen := make(map[string]map[string]Pagu) // key: nip -> id_rekin -> total pagu
 
 	for rows.Next() {
 		var rekin RencanaKinerjaAsn
@@ -168,17 +169,28 @@ func getRencanaKinerjaPokin(idPokin int) ([]PelaksanaPokin, error) {
 		}
 		rekin.TahapanPelaksanaan = pelaksanaanRenaksi
 
-		key := rekin.NIPPelaksana + "_" + rekin.NamaPelaksana
-
+		key := rekin.NIPPelaksana
 		if _, ok := pelaksanaRekins[key]; !ok {
 			pelaksanaRekins[key] = &PelaksanaPokin{
 				NamaPelaksana:   rekin.NamaPelaksana,
 				NIPPelaksana:    rekin.NIPPelaksana,
 				RencanaKinerjas: []RencanaKinerjaAsn{},
 			}
+			seen[key] = make(map[string]Pagu)
 		}
 
-		pelaksanaRekins[key].RencanaKinerjas = append(pelaksanaRekins[key].RencanaKinerjas, rekin)
+		if existingPagu, ok := seen[key][rekin.IdRekin]; ok {
+			seen[key][rekin.IdRekin] = existingPagu + rekin.Pagu
+			for i := range pelaksanaRekins[key].RencanaKinerjas {
+				if pelaksanaRekins[key].RencanaKinerjas[i].IdRekin == rekin.IdRekin {
+					pelaksanaRekins[key].RencanaKinerjas[i].Pagu = seen[key][rekin.IdRekin]
+					break
+				}
+			}
+		} else {
+			seen[key][rekin.IdRekin] = rekin.Pagu
+			pelaksanaRekins[key].RencanaKinerjas = append(pelaksanaRekins[key].RencanaKinerjas, rekin)
+		}
 	}
 
 	if err := rows.Err(); err != nil {
