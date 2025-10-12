@@ -18,19 +18,19 @@ type TagPokin struct {
 }
 
 type Pokin struct {
-	KodeProgramUnggulan string        `json:"kode_program_unggulan,omitempty"`
-	IdTagging         int              `json:"id_tagging,omitempty"`
-	IdPohon           int              `json:"id_pohon"`
-	Tahun             Tahun            `json:"tahun"`
-	NamaPohon         string           `json:"nama_pohon"`
-	KodeOpd           string           `json:"kode_opd"`
-	NamaOpd           string           `json:"nama_opd"`
-	JenisPohon        JenisPohon       `json:"jenis_pohon"`
-	KeteranganTagging string           `json:"keterangan_tagging"`
-	Status            string           `json:"status"`
-	Pelaksanas        []PelaksanaPokin `json:"pelaksanas"`
-	Keterangan        string           `json:"keterangan"`
-	Indikator         []IndikatorPohon  `json:"indikator,omitempty"`
+	KodeProgramUnggulan string           `json:"kode_program_unggulan,omitempty"`
+	IdTagging           int              `json:"id_tagging,omitempty"`
+	IdPohon             int              `json:"id_pohon"`
+	Tahun               Tahun            `json:"tahun"`
+	NamaPohon           string           `json:"nama_pohon"`
+	KodeOpd             string           `json:"kode_opd"`
+	NamaOpd             string           `json:"nama_opd"`
+	JenisPohon          JenisPohon       `json:"jenis_pohon"`
+	KeteranganTagging   string           `json:"keterangan_tagging"`
+	Status              string           `json:"status"`
+	Pelaksanas          []PelaksanaPokin `json:"pelaksanas"`
+	Keterangan          string           `json:"keterangan"`
+	Indikator           []IndikatorPohon `json:"indikator,omitempty"`
 }
 
 type IndikatorPohon struct {
@@ -65,8 +65,12 @@ type RencanaKinerjaAsn struct {
 	RencanaKinerja     string           `json:"rencana_kinerja"`
 	NamaPelaksana      string           `json:"nama_pelaksana"`
 	NIPPelaksana       string           `json:"nip_pelaksana"`
-	KodeSubkegiatan    string           `json:"kode_subkegiatan"`
-	NamaSubkegiatan    string           `json:"nama_subkegiatan"`
+	KodeBidangUrusan   string           `json:"kode_bidang_urusan,omitempty"`
+	NamaBidangUrusan   string           `json:"nama_bidang_urusan,omitempty"`
+	KodeProgram        string           `json:"kode_program,omitempty"`
+	NamaProgram        string           `json:"nama_program,omitempty"`
+	KodeSubkegiatan    string           `json:"kode_subkegiatan,omitempty"`
+	NamaSubkegiatan    string           `json:"nama_subkegiatan,omitempty"`
 	Pagu               Pagu             `json:"pagu"`
 	Catatan            string           `json:"keterangan"`
 	TahapanPelaksanaan WaktuPelaksanaan `json:"tahapan_pelaksanaan"`

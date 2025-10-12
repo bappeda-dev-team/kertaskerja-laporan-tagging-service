@@ -103,12 +103,16 @@ func getPelaksanaanRenaksi(idRekin string) (WaktuPelaksanaan, error) {
 	return result, nil
 }
 
-func getRencanaKinerjaPokin(idPokin int) ([]PelaksanaPokin, error) {
+func getRencanaKinerjaPokin(idPokin int, jenisPohon string) ([]PelaksanaPokin, error) {
 	query := `
 		SELECT DISTINCT rekin.id,
 		       rekin.nama_rencana_kinerja,
 		       pegawai.nama,
 		       pegawai.nip,
+               bidur.kode_bidang_urusan,
+               bidur.nama_bidang_urusan,
+               prg.kode_program,
+               prg.nama_program,
 		       subkegiatan.kode_subkegiatan,
 		       subkegiatan.nama_subkegiatan,
 		       rinbel.anggaran,
@@ -120,6 +124,10 @@ func getRencanaKinerjaPokin(idPokin int) ([]PelaksanaPokin, error) {
 		LEFT JOIN tb_subkegiatan subkegiatan ON subkegiatan.kode_subkegiatan = sub_rekin.kode_subkegiatan
 		LEFT JOIN tb_rencana_aksi renaksi ON renaksi.rencana_kinerja_id = rekin.id
 		LEFT JOIN tb_rincian_belanja rinbel ON rinbel.renaksi_id = renaksi.id
+        LEFT JOIN tb_master_program prg
+		       ON prg.kode_program = SUBSTRING(sub_rekin.kode_subkegiatan, 1, 7)
+        LEFT JOIN tb_bidang_urusan bidur
+		       ON bidur.kode_bidang_urusan = SUBSTRING(sub_rekin.kode_subkegiatan, 1, 4)
 		WHERE rekin.kode_opd = pokin.kode_opd AND pokin.id = ?`
 
 	rows, err := db.Query(query, idPokin)
@@ -133,6 +141,8 @@ func getRencanaKinerjaPokin(idPokin int) ([]PelaksanaPokin, error) {
 
 	for rows.Next() {
 		var rekin RencanaKinerjaAsn
+		var kodeBidur, namaBidur sql.NullString
+		var kodePrg, namaPrg sql.NullString
 		var kodeSub, namaSub sql.NullString
 		var pagu sql.NullInt64
 
@@ -141,6 +151,10 @@ func getRencanaKinerjaPokin(idPokin int) ([]PelaksanaPokin, error) {
 			&rekin.RencanaKinerja,
 			&rekin.NamaPelaksana,
 			&rekin.NIPPelaksana,
+			&kodeBidur,
+			&namaBidur,
+			&kodePrg,
+			&namaPrg,
 			&kodeSub,
 			&namaSub,
 			&pagu,
@@ -150,7 +164,21 @@ func getRencanaKinerjaPokin(idPokin int) ([]PelaksanaPokin, error) {
 			return nil, fmt.Errorf("scan error: %w", err)
 		}
 
+		log.Println("JENIS-POHON: ", jenisPohon)
+
 		// Handle NULL dengan NullString/NullInt64
+		if kodeBidur.Valid && jenisPohon == "Strategic" {
+			rekin.KodeBidangUrusan = kodeBidur.String
+		}
+		if namaBidur.Valid && jenisPohon == "Strategic" {
+			rekin.NamaBidangUrusan = namaBidur.String
+		}
+		if kodePrg.Valid && jenisPohon == "Tactical" {
+			rekin.KodeProgram = kodePrg.String
+		}
+		if namaPrg.Valid && jenisPohon == "Tactical" {
+			rekin.NamaProgram = namaPrg.String
+		}
 		if kodeSub.Valid {
 			rekin.KodeSubkegiatan = kodeSub.String
 		}
@@ -287,7 +315,7 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 			Keterangan:        toStr(keterangan),
 		}
 
-		pelaksanas, err := getRencanaKinerjaPokin(po.IdPohon)
+		pelaksanas, err := getRencanaKinerjaPokin(po.IdPohon, toStr(jenisPohon))
 		if err != nil {
 			log.Printf("[ERROR] Get Rekin Pokin %d error: %v", po.IdPohon, err)
 			return
