@@ -61,6 +61,71 @@ func initDB() {
 	log.Printf("Idle Connections: %d", db.Stats().Idle)
 }
 
+// parent = strategic
+// child = tactical
+func getBidangUrusanByPokinIdParent(idPokinParent int) (BidangUrusan, error) {
+	rows, err := db.Query(`
+	select bidur.kode_bidang_urusan, bidur.nama_bidang_urusan
+	from tb_rencana_kinerja rekin
+	LEFT JOIN tb_subkegiatan_terpilih sub_rekin ON sub_rekin.rekin_id = rekin.id
+	LEFT JOIN tb_bidang_urusan bidur ON bidur.kode_bidang_urusan = SUBSTRING(sub_rekin.kode_subkegiatan, 1, 4)
+	where rekin.id_pohon in (
+		select pokin.id from tb_pohon_kinerja pokin
+		where pokin.parent in (
+			select id
+			from tb_pohon_kinerja
+			where parent = ? and jenis_pohon in ('Tactical', 'Tactical Pemda')
+		) and jenis_pohon in ('Operational', 'Operational Pemda')
+	) LIMIT 1;`, idPokinParent)
+
+	if err != nil {
+		return BidangUrusan{}, fmt.Errorf("query error: %w", err)
+	}
+	defer rows.Close()
+
+	var bidUr BidangUrusan
+	for rows.Next() {
+		if err := rows.Scan(&bidUr.KodeBidangUrusan, &bidUr.NamaBidangUrusan); err != nil {
+			if err == sql.ErrNoRows {
+				return BidangUrusan{}, fmt.Errorf("bidang urusan tidak ditemukan")
+			}
+			return BidangUrusan{}, fmt.Errorf("query error: %w", err)
+		}
+	}
+	return bidUr, nil
+}
+
+// parent = tactical
+// child = operational
+func getProgramByPokinIdParent(idPokinParent int) (Program, error) {
+	rows, err := db.Query(`
+	select prg.kode_program, prg.nama_program
+	from tb_rencana_kinerja rekin
+	LEFT JOIN tb_subkegiatan_terpilih sub_rekin ON sub_rekin.rekin_id = rekin.id
+	LEFT JOIN tb_master_program prg
+			ON prg.kode_program = SUBSTRING(sub_rekin.kode_subkegiatan, 1, 7)
+	where rekin.id_pohon in (
+		select pokin.id from tb_pohon_kinerja pokin
+		where pokin.parent = ? and jenis_pohon in ('Operational', 'Operational Pemda')
+	) LIMIT 1;`, idPokinParent)
+
+	if err != nil {
+		return Program{}, fmt.Errorf("query error: %w", err)
+	}
+	defer rows.Close()
+
+	var prg Program
+	for rows.Next() {
+		if err := rows.Scan(&prg.KodeProgram, &prg.NamaProgram); err != nil {
+			if err == sql.ErrNoRows {
+				return Program{}, fmt.Errorf("bidang urusan tidak ditemukan")
+			}
+			return Program{}, fmt.Errorf("query error: %w", err)
+		}
+	}
+	return prg, nil
+}
+
 func getPelaksanaanRenaksi(idRekin string) (WaktuPelaksanaan, error) {
 	query := `
 		SELECT renaksi.bulan, renaksi.bobot
@@ -109,10 +174,6 @@ func getRencanaKinerjaPokin(idPokin int, jenisPohon string) ([]PelaksanaPokin, e
 		       rekin.nama_rencana_kinerja,
 		       pegawai.nama,
 		       pegawai.nip,
-               bidur.kode_bidang_urusan,
-               bidur.nama_bidang_urusan,
-               prg.kode_program,
-               prg.nama_program,
 		       subkegiatan.kode_subkegiatan,
 		       subkegiatan.nama_subkegiatan,
 		       rinbel.anggaran,
@@ -124,10 +185,6 @@ func getRencanaKinerjaPokin(idPokin int, jenisPohon string) ([]PelaksanaPokin, e
 		LEFT JOIN tb_subkegiatan subkegiatan ON subkegiatan.kode_subkegiatan = sub_rekin.kode_subkegiatan
 		LEFT JOIN tb_rencana_aksi renaksi ON renaksi.rencana_kinerja_id = rekin.id
 		LEFT JOIN tb_rincian_belanja rinbel ON rinbel.renaksi_id = renaksi.id
-        LEFT JOIN tb_master_program prg
-		       ON prg.kode_program = SUBSTRING(sub_rekin.kode_subkegiatan, 1, 7)
-        LEFT JOIN tb_bidang_urusan bidur
-		       ON bidur.kode_bidang_urusan = SUBSTRING(sub_rekin.kode_subkegiatan, 1, 4)
 		WHERE rekin.kode_opd = pokin.kode_opd AND pokin.id = ?`
 
 	rows, err := db.Query(query, idPokin)
@@ -141,8 +198,6 @@ func getRencanaKinerjaPokin(idPokin int, jenisPohon string) ([]PelaksanaPokin, e
 
 	for rows.Next() {
 		var rekin RencanaKinerjaAsn
-		var kodeBidur, namaBidur sql.NullString
-		var kodePrg, namaPrg sql.NullString
 		var kodeSub, namaSub sql.NullString
 		var pagu sql.NullInt64
 
@@ -151,10 +206,6 @@ func getRencanaKinerjaPokin(idPokin int, jenisPohon string) ([]PelaksanaPokin, e
 			&rekin.RencanaKinerja,
 			&rekin.NamaPelaksana,
 			&rekin.NIPPelaksana,
-			&kodeBidur,
-			&namaBidur,
-			&kodePrg,
-			&namaPrg,
 			&kodeSub,
 			&namaSub,
 			&pagu,
@@ -164,21 +215,7 @@ func getRencanaKinerjaPokin(idPokin int, jenisPohon string) ([]PelaksanaPokin, e
 			return nil, fmt.Errorf("scan error: %w", err)
 		}
 
-		log.Println("JENIS-POHON: ", jenisPohon)
-
 		// Handle NULL dengan NullString/NullInt64
-		if kodeBidur.Valid && jenisPohon == "Strategic" {
-			rekin.KodeBidangUrusan = kodeBidur.String
-		}
-		if namaBidur.Valid && jenisPohon == "Strategic" {
-			rekin.NamaBidangUrusan = namaBidur.String
-		}
-		if kodePrg.Valid && jenisPohon == "Tactical" {
-			rekin.KodeProgram = kodePrg.String
-		}
-		if namaPrg.Valid && jenisPohon == "Tactical" {
-			rekin.NamaProgram = namaPrg.String
-		}
 		if kodeSub.Valid {
 			rekin.KodeSubkegiatan = kodeSub.String
 		}
@@ -187,6 +224,28 @@ func getRencanaKinerjaPokin(idPokin int, jenisPohon string) ([]PelaksanaPokin, e
 		}
 		if pagu.Valid {
 			rekin.Pagu = Pagu(pagu.Int64)
+		}
+
+		rekin.KodeBidangUrusan = "-"
+		rekin.NamaBidangUrusan = "-"
+		if jenisPohon == "Strategic" || jenisPohon == "Strategic Pemda" {
+			if bidangUrusan, err := getBidangUrusanByPokinIdParent(idPokin); err == nil {
+				rekin.KodeBidangUrusan = bidangUrusan.KodeBidangUrusan
+				rekin.NamaBidangUrusan = bidangUrusan.NamaBidangUrusan
+			} else {
+				log.Printf("[ERROR] Get Urusan error: %v", err)
+			}
+		}
+
+		rekin.KodeProgram = "-"
+		rekin.NamaProgram = "-"
+		if jenisPohon == "Tactical" || jenisPohon == "Tactical Pemda" {
+			if program, err := getProgramByPokinIdParent(idPokin); err == nil {
+				rekin.KodeProgram = program.KodeProgram
+				rekin.NamaProgram = program.NamaProgram
+			} else {
+				log.Printf("[ERROR] Get Program error: %v", err)
+			}
 		}
 
 		// renaksi / tahapan
@@ -303,11 +362,13 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		strJenisPohon := toStr(jenisPohon)
+
 		po := Pokin{
 			IdPohon:           idPohon,
 			NamaPohon:         toStr(namaPohon),
 			Tahun:             Tahun(tahunToInt(tahun)),
-			JenisPohon:        JenisPohon(toStr(jenisPohon)),
+			JenisPohon:        JenisPohon(strJenisPohon),
 			KodeOpd:           toStr(kodeOpd),
 			NamaOpd:           toStr(namaOpd),
 			KeteranganTagging: toStr(keteranganTagging),
@@ -315,11 +376,12 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 			Keterangan:        toStr(keterangan),
 		}
 
-		pelaksanas, err := getRencanaKinerjaPokin(po.IdPohon, toStr(jenisPohon))
+		pelaksanas, err := getRencanaKinerjaPokin(po.IdPohon, strJenisPohon)
 		if err != nil {
 			log.Printf("[ERROR] Get Rekin Pokin %d error: %v", po.IdPohon, err)
 			return
 		}
+
 		po.Pelaksanas = pelaksanas
 
 		listPokin = append(listPokin, po)

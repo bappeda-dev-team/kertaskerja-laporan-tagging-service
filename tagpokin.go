@@ -87,3 +87,14 @@ type BulanBobot struct {
 	Bulan int
 	Bobot int
 }
+
+type BidangUrusan struct {
+	KodeBidangUrusan string `json:"kode_bidang_urusan"`
+	NamaBidangUrusan string `json:"nama_bidang_urusan"`
+}
+
+type Program struct {
+	KodeProgram      string           `json:"kode_program"`
+	NamaProgram      string           `json:"nama_program"`
+	IndikatorProgram []IndikatorPohon `json:"indikator"`
+}
