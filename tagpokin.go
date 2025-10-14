@@ -19,6 +19,8 @@ type TagPokin struct {
 
 type Pokin struct {
 	KodeProgramUnggulan string           `json:"kode_program_unggulan,omitempty"`
+	NamaProgramUnggulan string           `json:"nama_program_unggulan"`
+	RencanaImplementasi string           `json:"rencana_implementasi"`
 	IdTagging           int              `json:"id_tagging,omitempty"`
 	IdPohon             int              `json:"id_pohon"`
 	Tahun               Tahun            `json:"tahun"`

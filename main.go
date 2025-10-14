@@ -422,6 +422,8 @@ func getDetailHandler(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := db.Query(`SELECT
                             ket.kode_program_unggulan,
+                            pu.nama_tagging,
+                            pu.keterangan_program_unggulan,
                             ket.id_tagging,
                             pokin.id,
 							pokin.nama_pohon,
@@ -436,6 +438,7 @@ func getDetailHandler(w http.ResponseWriter, r *http.Request) {
                             tgt.satuan AS satuan_target_indikator_pokin,
                             tgt.tahun AS tahun_target
                            FROM tb_keterangan_tagging_program_unggulan ket
+                           JOIN tb_program_unggulan pu ON pu.kode_program_unggulan = ket.kode_program_unggulan
                            JOIN tb_tagging_pokin tag ON tag.id = ket.id_tagging
                            LEFT JOIN tb_pohon_kinerja pokin ON pokin.id = tag.id_pokin
 						   LEFT JOIN tb_operasional_daerah opd ON opd.kode_opd = pokin.kode_opd
@@ -465,6 +468,8 @@ func getDetailHandler(w http.ResponseWriter, r *http.Request) {
 
 		err := rows.Scan(
 			&pok.KodeProgramUnggulan,
+			&pok.NamaProgramUnggulan,
+			&pok.RencanaImplementasi,
 			&pok.IdTagging,
 			&pok.IdPohon,
 			&pok.NamaPohon,
@@ -489,6 +494,8 @@ func getDetailHandler(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			existing = &Pokin{
 				KodeProgramUnggulan: pok.KodeProgramUnggulan,
+				NamaProgramUnggulan: pok.NamaProgramUnggulan,
+				RencanaImplementasi: pok.RencanaImplementasi,
 				IdTagging:           pok.IdTagging,
 				IdPohon:             pok.IdPohon,
 				NamaPohon:           pok.NamaPohon,
