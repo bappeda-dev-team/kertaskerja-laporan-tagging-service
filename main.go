@@ -327,7 +327,7 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
                             opd.nama_opd,
 							tag.keterangan_tagging,
                             pokin.status,
-                            pokin.keterangan
+                            prog.keterangan_program_unggulan
 						   FROM
 							tb_pohon_kinerja pokin
 						   JOIN tb_operasional_daerah opd ON opd.kode_opd = pokin.kode_opd
@@ -335,6 +335,8 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 							AND pokin.tahun = ?
 							AND pokin.kode_opd != ""
                             AND pokin.status in ("pokin dari pemda", "")
+                           JOIN tb_keterangan_tagging_program_unggulan prung ON proung.id_tagging = tag.id
+                           JOIN tb_program_unggulan prog ON prung.kode_program_unggulan = prog.kode_program_unggulan
                            WHERE tag.nama_tagging = ?`, tahun, tag)
 	if err != nil {
 		http.Error(w, "query error: "+err.Error(), http.StatusInternalServerError)
