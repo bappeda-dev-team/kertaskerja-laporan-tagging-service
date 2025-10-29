@@ -595,7 +595,7 @@ func getDetailBatchHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Siapkan query dynamic (WHERE IN (...))
 	placeholders := make([]string, len(req.KodeProgramUnggulan))
-	args := make([]interface{}, len(req.KodeProgramUnggulan))
+	args := make([]any, len(req.KodeProgramUnggulan))
 	for i, kode := range req.KodeProgramUnggulan {
 		placeholders[i] = "?"
 		args[i] = kode
