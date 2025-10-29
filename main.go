@@ -327,7 +327,9 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
                             opd.nama_opd,
 							tag.keterangan_tagging,
                             pokin.status,
-                            prog.keterangan_program_unggulan
+                            prog.kode_program_unggulan,
+                            prog.keterangan_program_unggulan,
+                            pokin.keterangan
 						   FROM
 							tb_pohon_kinerja pokin
 						   JOIN tb_operasional_daerah opd ON opd.kode_opd = pokin.kode_opd
@@ -348,18 +350,20 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 	var listPokin []Pokin
 	for rows.Next() {
 		var (
-			idPohon           int
-			namaPohon         sql.NullString
-			tahun             sql.NullInt64
-			jenisPohon        sql.NullString
-			kodeOpd           sql.NullString
-			namaOpd           sql.NullString
-			keteranganTagging sql.NullString
-			status            sql.NullString
-			keterangan        sql.NullString
+			idPohon             int
+			namaPohon           sql.NullString
+			tahun               sql.NullInt64
+			jenisPohon          sql.NullString
+			kodeOpd             sql.NullString
+			namaOpd             sql.NullString
+			keteranganTagging   sql.NullString
+			status              sql.NullString
+			kodeProgramUnggulan sql.NullString
+			namaProgramUnggulan sql.NullString
+			keterangan          sql.NullString
 		)
 
-		if err := rows.Scan(&idPohon, &namaPohon, &tahun, &jenisPohon, &kodeOpd, &namaOpd, &keteranganTagging, &status, &keterangan); err != nil {
+		if err := rows.Scan(&idPohon, &namaPohon, &tahun, &jenisPohon, &kodeOpd, &namaOpd, &keteranganTagging, &status, &kodeProgramUnggulan, &namaProgramUnggulan, &keterangan); err != nil {
 			http.Error(w, "scan error: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -367,15 +371,17 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 		strJenisPohon := toStr(jenisPohon)
 
 		po := Pokin{
-			IdPohon:           idPohon,
-			NamaPohon:         toStr(namaPohon),
-			Tahun:             Tahun(tahunToInt(tahun)),
-			JenisPohon:        JenisPohon(strJenisPohon),
-			KodeOpd:           toStr(kodeOpd),
-			NamaOpd:           toStr(namaOpd),
-			KeteranganTagging: toStr(keteranganTagging),
-			Status:            toStr(status),
-			Keterangan:        toStr(keterangan),
+			KodeProgramUnggulan: toStr(kodeProgramUnggulan),
+			NamaProgramUnggulan: toStr(namaProgramUnggulan),
+			IdPohon:             idPohon,
+			NamaPohon:           toStr(namaPohon),
+			Tahun:               Tahun(tahunToInt(tahun)),
+			JenisPohon:          JenisPohon(strJenisPohon),
+			KodeOpd:             toStr(kodeOpd),
+			NamaOpd:             toStr(namaOpd),
+			KeteranganTagging:   toStr(keteranganTagging),
+			Status:              toStr(status),
+			Keterangan:          toStr(keterangan),
 		}
 
 		pelaksanas, err := getRencanaKinerjaPokin(po.IdPohon, strJenisPohon)
