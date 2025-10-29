@@ -762,7 +762,7 @@ func main() {
 	http.HandleFunc("/health", healthCheckHandler)
 	http.HandleFunc("/laporan/tagging_pokin", laporanHandler)
 	http.HandleFunc("/tagging/getDetail/", getDetailHandler)
-	http.HandleFunc("/tagging/getDetailBatch/", getDetailBatchHandler)
+	http.HandleFunc("/tagging/getDetailBatch", getDetailBatchHandler)
 
 	handler := corsMiddleware(http.DefaultServeMux)
 	log.Println("Server running di :8080")
