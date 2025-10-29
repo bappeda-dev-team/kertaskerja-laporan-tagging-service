@@ -566,6 +566,182 @@ func getDetailHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func getDetailBatchHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed, pakai POST", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// kode program unggulansss
+	var req struct {
+		KodeProgramUnggulan []string `json:"kode_program_unggulan" validate:"required,min=1"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, fmt.Sprintf("gagal decode body: %v", err), http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	if len(req.KodeProgramUnggulan) == 0 {
+		http.Error(w, "kode_program_unggulan wajib diisi dan minimal 1", http.StatusBadRequest)
+		return
+	}
+
+	// Siapkan query dynamic (WHERE IN (...))
+	placeholders := make([]string, len(req.KodeProgramUnggulan))
+	args := make([]interface{}, len(req.KodeProgramUnggulan))
+	for i, kode := range req.KodeProgramUnggulan {
+		placeholders[i] = "?"
+		args[i] = kode
+	}
+
+	query := fmt.Sprintf(`
+        SELECT
+            ket.kode_program_unggulan,
+            pu.nama_tagging,
+            pu.keterangan_program_unggulan,
+            ket.id_tagging,
+            pokin.id,
+            pokin.nama_pohon,
+            pokin.tahun,
+            pokin.jenis_pohon,
+            opd.kode_opd,
+            opd.nama_opd,
+            ind.id,
+            ind.indikator AS indikator_pokin,
+            tgt.id,
+            tgt.target AS target_indikator_pokin,
+            tgt.satuan AS satuan_target_indikator_pokin,
+            tgt.tahun AS tahun_target
+        FROM tb_keterangan_tagging_program_unggulan ket
+        JOIN tb_program_unggulan pu ON pu.kode_program_unggulan = ket.kode_program_unggulan
+        JOIN tb_tagging_pokin tag ON tag.id = ket.id_tagging
+        LEFT JOIN tb_pohon_kinerja pokin ON pokin.id = tag.id_pokin
+        LEFT JOIN tb_operasional_daerah opd ON opd.kode_opd = pokin.kode_opd
+        LEFT JOIN tb_indikator ind ON ind.pokin_id = pokin.id
+        LEFT JOIN tb_target tgt ON tgt.indikator_id = ind.id
+        WHERE ket.kode_program_unggulan IN (%s)
+    `, strings.Join(placeholders, ","))
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		http.Error(w, "query error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	// List Pokin
+	// var listPokin []Pokin
+	// map[id_pohon]Pokin
+	pokinMap := make(map[int]*Pokin)
+	for rows.Next() {
+		var (
+			pok       Pokin
+			indId     sql.NullString
+			indikator sql.NullString
+			tgtId     sql.NullString
+			tgtVal    sql.NullString
+			satuan    sql.NullString
+			tahun     sql.NullInt64
+		)
+
+		err := rows.Scan(
+			&pok.KodeProgramUnggulan,
+			&pok.NamaProgramUnggulan,
+			&pok.RencanaImplementasi,
+			&pok.IdTagging,
+			&pok.IdPohon,
+			&pok.NamaPohon,
+			&pok.Tahun,
+			&pok.JenisPohon,
+			&pok.KodeOpd,
+			&pok.NamaOpd,
+			&indId,
+			&indikator,
+			&tgtId,
+			&tgtVal,
+			&satuan,
+			&tahun,
+		)
+		if err != nil {
+			http.Error(w, "scan error: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Ambil pokin atau buat baru
+		existing, ok := pokinMap[pok.IdPohon]
+		if !ok {
+			existing = &Pokin{
+				KodeProgramUnggulan: pok.KodeProgramUnggulan,
+				NamaProgramUnggulan: pok.NamaProgramUnggulan,
+				RencanaImplementasi: pok.RencanaImplementasi,
+				IdTagging:           pok.IdTagging,
+				IdPohon:             pok.IdPohon,
+				NamaPohon:           pok.NamaPohon,
+				Tahun:               pok.Tahun,
+				JenisPohon:          pok.JenisPohon,
+				KodeOpd:             pok.KodeOpd,
+				NamaOpd:             pok.NamaOpd,
+				Indikator:           []IndikatorPohon{},
+			}
+			pokinMap[pok.IdPohon] = existing
+		}
+
+		// Tambahkan indikator (jika ada)
+		if indId.Valid {
+			indikatorFound := false
+			for i := range existing.Indikator {
+				if existing.Indikator[i].IdIndikator == indId.String {
+					indikatorFound = true
+					// Tambahkan target
+					if tgtId.Valid {
+						existing.Indikator[i].Target = append(existing.Indikator[i].Target, TargetIndikator{
+							IdTarget: tgtId.String,
+							Target:   tgtVal.String,
+							Satuan:   satuan.String,
+							Tahun:    int(tahun.Int64),
+						})
+					}
+					break
+				}
+			}
+
+			if !indikatorFound {
+				newInd := IndikatorPohon{
+					IdIndikator: indId.String,
+					Indikator:   indikator.String, // atau nama kolom indikator
+					Target:      []TargetIndikator{},
+				}
+
+				if tgtId.Valid {
+					newInd.Target = append(newInd.Target, TargetIndikator{
+						IdTarget: tgtId.String,
+						Target:   tgtVal.String,
+						Satuan:   satuan.String,
+						Tahun:    int(tahun.Int64),
+					})
+				}
+
+				existing.Indikator = append(existing.Indikator, newInd)
+			}
+		}
+	}
+
+	// ubah ke slice
+	var listPokin []Pokin
+	for _, p := range pokinMap {
+		listPokin = append(listPokin, *p)
+	}
+
+	response := Response{
+		Status:  http.StatusOK,
+		Message: "Laporan Tagging Pohon Kinerja",
+		Data:    listPokin,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
 func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -580,6 +756,7 @@ func main() {
 	http.HandleFunc("/health", healthCheckHandler)
 	http.HandleFunc("/laporan/tagging_pokin", laporanHandler)
 	http.HandleFunc("/tagging/getDetail/", getDetailHandler)
+	http.HandleFunc("/tagging/getDetailBatch/", getDetailBatchHandler)
 
 	handler := corsMiddleware(http.DefaultServeMux)
 	log.Println("Server running di :8080")
