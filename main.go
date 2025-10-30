@@ -699,15 +699,27 @@ func getDetailBatchHandler(w http.ResponseWriter, r *http.Request) {
 			for i := range existing.Indikator {
 				if existing.Indikator[i].IdIndikator == indId.String {
 					indikatorFound = true
-					// Tambahkan target
+
+					// Tambahkan target jika belum ada
 					if tgtId.Valid {
-						existing.Indikator[i].Target = append(existing.Indikator[i].Target, TargetIndikator{
-							IdTarget: tgtId.String,
-							Target:   tgtVal.String,
-							Satuan:   satuan.String,
-							Tahun:    int(tahun.Int64),
-						})
+						targetExists := false
+						for _, t := range existing.Indikator[i].Target {
+							if t.IdTarget == tgtId.String {
+								targetExists = true
+								break
+							}
+						}
+
+						if !targetExists {
+							existing.Indikator[i].Target = append(existing.Indikator[i].Target, TargetIndikator{
+								IdTarget: tgtId.String,
+								Target:   tgtVal.String,
+								Satuan:   satuan.String,
+								Tahun:    int(tahun.Int64),
+							})
+						}
 					}
+
 					break
 				}
 			}
@@ -715,7 +727,7 @@ func getDetailBatchHandler(w http.ResponseWriter, r *http.Request) {
 			if !indikatorFound {
 				newInd := IndikatorPohon{
 					IdIndikator: indId.String,
-					Indikator:   indikator.String, // atau nama kolom indikator
+					Indikator:   indikator.String,
 					Target:      []TargetIndikator{},
 				}
 
