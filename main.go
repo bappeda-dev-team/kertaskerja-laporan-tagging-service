@@ -618,7 +618,14 @@ func getDetailBatchHandler(w http.ResponseWriter, r *http.Request) {
             tgt.id,
             tgt.target AS target_indikator_pokin,
             tgt.satuan AS satuan_target_indikator_pokin,
-            tgt.tahun AS tahun_target
+            tgt.tahun AS tahun_target,
+            tp.pegawai_id,
+            peg.nama,
+            peg.nip,
+            rekin.id as rekin_id,
+            rekin.nama_rencana_kinerja,
+            sub.kode_subkegiatan,
+            sub.nama_subkegiatan
         FROM tb_keterangan_tagging_program_unggulan ket
         JOIN tb_program_unggulan pu ON pu.kode_program_unggulan = ket.kode_program_unggulan
         JOIN tb_tagging_pokin tag ON tag.id = ket.id_tagging
@@ -626,6 +633,11 @@ func getDetailBatchHandler(w http.ResponseWriter, r *http.Request) {
         LEFT JOIN tb_operasional_daerah opd ON opd.kode_opd = pokin.kode_opd
         LEFT JOIN tb_indikator ind ON ind.pokin_id = pokin.id
         LEFT JOIN tb_target tgt ON tgt.indikator_id = ind.id
+        LEFT JOIN tb_pelaksana_pokin tp ON tp.pohon_kinerja_id = pokin.id
+        LEFT JOIN tb_pegawai peg ON tp.pegawai_id = peg.id
+        LEFT JOIN tb_rencana_kinerja rekin ON pokin.id = rekin.id_pohon AND peg.nip = rekin.pegawai_id
+        LEFT JOIN tb_subkegiatan_terpilih tst ON tst.rekin_id = rekin.id
+        LEFT JOIN tb_subkegiatan sub ON tst.subkegiatan_id = sub.id
         WHERE ket.kode_program_unggulan IN (%s)
     `, strings.Join(placeholders, ","))
 
@@ -642,13 +654,20 @@ func getDetailBatchHandler(w http.ResponseWriter, r *http.Request) {
 	pokinMap := make(map[int]*Pokin)
 	for rows.Next() {
 		var (
-			pok       Pokin
-			indId     sql.NullString
-			indikator sql.NullString
-			tgtId     sql.NullString
-			tgtVal    sql.NullString
-			satuan    sql.NullString
-			tahun     sql.NullInt64
+			pok         Pokin
+			indId       sql.NullString
+			indikator   sql.NullString
+			tgtId       sql.NullString
+			tgtVal      sql.NullString
+			satuan      sql.NullString
+			tahun       sql.NullInt64
+			pegawaiId   sql.NullString
+			namaPegawai sql.NullString
+			nip         sql.NullString
+			rekinId     sql.NullString
+			rekin       sql.NullString
+			kodeSub     sql.NullString
+			namaSub     sql.NullString
 		)
 
 		err := rows.Scan(
@@ -668,6 +687,13 @@ func getDetailBatchHandler(w http.ResponseWriter, r *http.Request) {
 			&tgtVal,
 			&satuan,
 			&tahun,
+			&pegawaiId,
+			&namaPegawai,
+			&nip,
+			&rekinId,
+			&rekin,
+			&kodeSub,
+			&namaSub,
 		)
 		if err != nil {
 			http.Error(w, "scan error: "+err.Error(), http.StatusInternalServerError)
@@ -689,58 +715,59 @@ func getDetailBatchHandler(w http.ResponseWriter, r *http.Request) {
 				KodeOpd:             pok.KodeOpd,
 				NamaOpd:             pok.NamaOpd,
 				Indikator:           []IndikatorPohon{},
+				Pelaksanas:          []PelaksanaPokin{},
 			}
 			pokinMap[pok.IdPohon] = existing
 		}
 
-		// Tambahkan indikator (jika ada)
-		if indId.Valid {
-			indikatorFound := false
-			for i := range existing.Indikator {
-				if existing.Indikator[i].IdIndikator == indId.String {
-					indikatorFound = true
+		if pegawaiId.Valid {
+			pelaksana := findPegawaiId(existing, pegawaiId.String)
 
-					// Tambahkan target jika belum ada
-					if tgtId.Valid {
-						targetExists := false
-						for _, t := range existing.Indikator[i].Target {
-							if t.IdTarget == tgtId.String {
-								targetExists = true
-								break
-							}
-						}
-
-						if !targetExists {
-							existing.Indikator[i].Target = append(existing.Indikator[i].Target, TargetIndikator{
-								IdTarget: tgtId.String,
-								Target:   tgtVal.String,
-								Satuan:   satuan.String,
-								Tahun:    int(tahun.Int64),
-							})
-						}
-					}
-
-					break
-				}
+			if pelaksana == nil {
+				existing.Pelaksanas = append(existing.Pelaksanas, PelaksanaPokin{
+					IdPelaksana:     pegawaiId.String,
+					NamaPelaksana:   namaPegawai.String,
+					NIPPelaksana:    nip.String,
+					RencanaKinerjas: []RencanaKinerjaAsn{},
+				})
+				pelaksana = &existing.Pelaksanas[len(existing.Pelaksanas)-1]
 			}
 
-			if !indikatorFound {
-				newInd := IndikatorPohon{
+			if rekinId.Valid {
+				rekins := findRekinId(pelaksana, rekinId.String)
+
+				if rekins == nil {
+					pelaksana.RencanaKinerjas = append(pelaksana.RencanaKinerjas, RencanaKinerjaAsn{
+						IdRekin:         rekinId.String,
+						RencanaKinerja:  rekin.String,
+						Pagu:            Pagu(0),
+						KodeSubkegiatan: kodeSub.String,
+						NamaSubkegiatan: namaSub.String,
+					})
+				}
+			}
+		}
+
+		// Tambahkan indikator (jika ada)
+		if indId.Valid {
+			ind := findIndikator(existing, indId.String)
+
+			if ind == nil {
+				existing.Indikator = append(existing.Indikator, IndikatorPohon{
 					IdIndikator: indId.String,
 					Indikator:   indikator.String,
 					Target:      []TargetIndikator{},
-				}
-
-				if tgtId.Valid {
-					newInd.Target = append(newInd.Target, TargetIndikator{
-						IdTarget: tgtId.String,
-						Target:   tgtVal.String,
-						Satuan:   satuan.String,
-						Tahun:    int(tahun.Int64),
-					})
-				}
-
-				existing.Indikator = append(existing.Indikator, newInd)
+				})
+				ind = &existing.Indikator[len(existing.Indikator)-1]
+			}
+			if tgtVal.Valid {
+				addTargetIfNotExists(
+					ind,
+					tgtId.String,
+					tgtVal.String,
+					satuan.String,
+					int(tahun.Int64),
+				)
 			}
 		}
 	}
@@ -815,4 +842,49 @@ func tahunToInt(ni sql.NullInt64) int {
 		return int(ni.Int64)
 	}
 	return -1
+}
+
+// rekinId
+func findRekinId(p *PelaksanaPokin, idRekin string) *RencanaKinerjaAsn {
+	for i := range p.RencanaKinerjas {
+		if p.RencanaKinerjas[i].IdRekin == idRekin {
+			return &p.RencanaKinerjas[i]
+		}
+	}
+	return nil
+}
+
+// pegawaiId
+func findPegawaiId(p *Pokin, idPegawai string) *PelaksanaPokin {
+	for i := range p.Pelaksanas {
+		if p.Pelaksanas[i].IdPelaksana == idPegawai {
+			return &p.Pelaksanas[i]
+		}
+	}
+	return nil
+}
+
+// indikator pokin
+func findIndikator(p *Pokin, id string) *IndikatorPohon {
+	for i := range p.Indikator {
+		if p.Indikator[i].IdIndikator == id {
+			return &p.Indikator[i]
+		}
+	}
+	return nil
+}
+
+// target indikator pokin
+func addTargetIfNotExists(ind *IndikatorPohon, id, val, sat string, tahun int) {
+	for _, t := range ind.Target {
+		if t.IdTarget == id {
+			return
+		}
+	}
+	ind.Target = append(ind.Target, TargetIndikator{
+		IdTarget: id,
+		Target:   val,
+		Satuan:   sat,
+		Tahun:    tahun,
+	})
 }
