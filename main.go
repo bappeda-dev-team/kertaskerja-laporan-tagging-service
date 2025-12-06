@@ -318,28 +318,60 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	tag := namaTaggingStr
 
-	rows, err := db.Query(`SELECT
-							pokin.id,
-							pokin.nama_pohon,
-							pokin.tahun,
-							pokin.jenis_pohon,
-							pokin.kode_opd,
-                            opd.nama_opd,
-							tag.keterangan_tagging,
-                            pokin.status,
-                            prog.kode_program_unggulan,
-                            prog.keterangan_program_unggulan,
-                            pokin.keterangan
-						   FROM
-							tb_pohon_kinerja pokin
-						   JOIN tb_operasional_daerah opd ON opd.kode_opd = pokin.kode_opd
-						   JOIN tb_tagging_pokin tag ON tag.id_pokin = pokin.id
-							AND pokin.tahun = ?
-							AND pokin.kode_opd != ""
-                            AND pokin.status in ("pokin dari pemda", "")
-                           JOIN tb_keterangan_tagging_program_unggulan prung ON prung.id_tagging = tag.id
-                           JOIN tb_program_unggulan prog ON prung.kode_program_unggulan = prog.kode_program_unggulan
-                           WHERE tag.nama_tagging = ?`, tahun, tag)
+	var query string
+
+	switch tag {
+	case "RB":
+		query = `
+        SELECT
+            pokin.id,
+            pokin.nama_pohon,
+            pokin.tahun,
+            pokin.jenis_pohon,
+            pokin.kode_opd,
+            opd.nama_opd,
+            tag.keterangan_tagging,
+            pokin.status,
+            rb.id,
+            rb.kegiatan_utama,
+            pokin.keterangan
+        FROM tb_pohon_kinerja pokin
+        JOIN tb_operasional_daerah opd ON opd.kode_opd = pokin.kode_opd
+        JOIN tb_tagging_pokin tag ON tag.id_pokin = pokin.id
+            AND pokin.tahun = ?
+            AND pokin.kode_opd != ""
+            AND pokin.status IN ("pokin dari pemda", "")
+        JOIN tb_keterangan_tagging_program_unggulan prung ON prung.id_tagging = tag.id
+        JOIN datamaster_rb rb ON prung.kode_program_unggulan = rb.id
+        WHERE tag.nama_tagging = ?
+    `
+	default:
+		query = `
+        SELECT
+            pokin.id,
+            pokin.nama_pohon,
+            pokin.tahun,
+            pokin.jenis_pohon,
+            pokin.kode_opd,
+            opd.nama_opd,
+            tag.keterangan_tagging,
+            pokin.status,
+            prog.kode_program_unggulan,
+            prog.keterangan_program_unggulan,
+            pokin.keterangan
+        FROM tb_pohon_kinerja pokin
+        JOIN tb_operasional_daerah opd ON opd.kode_opd = pokin.kode_opd
+        JOIN tb_tagging_pokin tag ON tag.id_pokin = pokin.id
+            AND pokin.tahun = ?
+            AND pokin.kode_opd != ""
+            AND pokin.status IN ("pokin dari pemda", "")
+        JOIN tb_keterangan_tagging_program_unggulan prung ON prung.id_tagging = tag.id
+        JOIN tb_program_unggulan prog ON prung.kode_program_unggulan = prog.kode_program_unggulan
+        WHERE tag.nama_tagging = ?
+    `
+	}
+
+	rows, err := db.Query(query, tahun, tag)
 	if err != nil {
 		http.Error(w, "query error: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -384,6 +416,7 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 			Keterangan:          toStr(keterangan),
 		}
 
+		// TODO: fix to use batch
 		pelaksanas, err := getRencanaKinerjaPokin(po.IdPohon, strJenisPohon)
 		if err != nil {
 			log.Printf("[ERROR] Get Rekin Pokin %d error: %v", po.IdPohon, err)
