@@ -657,6 +657,8 @@ func getDetailBatchHandler(w http.ResponseWriter, r *http.Request) {
             peg.nip,
             rekin.id as rekin_id,
             rekin.nama_rencana_kinerja,
+            bel.id AS id_pagu_rekin,
+            bel.anggaran AS pagu_rekin,
             sub.kode_subkegiatan,
             sub.nama_subkegiatan
         FROM tb_keterangan_tagging_program_unggulan ket
@@ -669,6 +671,8 @@ func getDetailBatchHandler(w http.ResponseWriter, r *http.Request) {
         LEFT JOIN tb_pelaksana_pokin tp ON tp.pohon_kinerja_id = pokin.id
         LEFT JOIN tb_pegawai peg ON tp.pegawai_id = peg.id
         LEFT JOIN tb_rencana_kinerja rekin ON pokin.id = rekin.id_pohon AND peg.nip = rekin.pegawai_id
+        LEFT JOIN tb_rencana_aksi renaksi ON rekin.id = renaksi.rencana_kinerja_id
+        LEFT JOIN tb_rincian_belanja bel ON renaksi.id = bel.renaksi_id
         LEFT JOIN tb_subkegiatan_terpilih tst ON tst.rekin_id = rekin.id
         LEFT JOIN tb_subkegiatan sub ON tst.subkegiatan_id = sub.id
         WHERE ket.kode_program_unggulan IN (%s)
@@ -701,6 +705,8 @@ func getDetailBatchHandler(w http.ResponseWriter, r *http.Request) {
 			rekin       sql.NullString
 			kodeSub     sql.NullString
 			namaSub     sql.NullString
+			paguRekin   sql.NullInt64
+			idPaguRekin sql.NullInt64
 		)
 
 		err := rows.Scan(
@@ -725,6 +731,8 @@ func getDetailBatchHandler(w http.ResponseWriter, r *http.Request) {
 			&nip,
 			&rekinId,
 			&rekin,
+			&idPaguRekin,
+			&paguRekin,
 			&kodeSub,
 			&namaSub,
 		)
@@ -777,7 +785,13 @@ func getDetailBatchHandler(w http.ResponseWriter, r *http.Request) {
 						KodeSubkegiatan: kodeSub.String,
 						NamaSubkegiatan: namaSub.String,
 					})
+					rekins = &pelaksana.RencanaKinerjas[len(pelaksana.RencanaKinerjas)-1]
 				}
+
+				if idPaguRekin.Valid {
+					rekins.Pagu += Pagu(paguRekin.Int64)
+				}
+
 			}
 		}
 
