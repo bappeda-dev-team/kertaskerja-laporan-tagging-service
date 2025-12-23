@@ -168,7 +168,47 @@ func getPelaksanaanRenaksi(idRekin string) (WaktuPelaksanaan, error) {
 	return result, nil
 }
 
+func getPaguByPokin(idPokin int) (map[string]Pagu, error) {
+	query := `
+		SELECT
+			rekin.id,
+			SUM(rinbel.anggaran) AS total_pagu
+		FROM tb_rencana_kinerja rekin
+		JOIN tb_pohon_kinerja pokin ON rekin.id_pohon = pokin.id
+		JOIN tb_rencana_aksi renaksi ON renaksi.rencana_kinerja_id = rekin.id
+		JOIN tb_rincian_belanja rinbel ON rinbel.renaksi_id = renaksi.id
+		WHERE pokin.id = ?
+		GROUP BY rekin.id
+	`
+
+	rows, err := db.Query(query, idPokin)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]Pagu)
+
+	for rows.Next() {
+		var id string
+		var total sql.NullInt64
+		if err := rows.Scan(&id, &total); err != nil {
+			return nil, err
+		}
+		if total.Valid {
+			result[id] = Pagu(total.Int64)
+		}
+	}
+
+	return result, nil
+}
+
 func getRencanaKinerjaPokin(idPokin int, jenisPohon string) ([]PelaksanaPokin, error) {
+	paguMap, err := getPaguByPokin(idPokin)
+	if err != nil {
+		return nil, err
+	}
+
 	query := `
 		SELECT DISTINCT rekin.id,
 		       rekin.nama_rencana_kinerja,
@@ -176,15 +216,12 @@ func getRencanaKinerjaPokin(idPokin int, jenisPohon string) ([]PelaksanaPokin, e
 		       pegawai.nip,
 		       subkegiatan.kode_subkegiatan,
 		       subkegiatan.nama_subkegiatan,
-		       rinbel.anggaran,
                rekin.catatan
 		FROM tb_rencana_kinerja rekin
 		JOIN tb_pegawai pegawai ON pegawai.nip = rekin.pegawai_id
 		JOIN tb_pohon_kinerja pokin ON rekin.id_pohon = pokin.id
 		LEFT JOIN tb_subkegiatan_terpilih sub_rekin ON sub_rekin.rekin_id = rekin.id
 		LEFT JOIN tb_subkegiatan subkegiatan ON subkegiatan.kode_subkegiatan = sub_rekin.kode_subkegiatan
-		LEFT JOIN tb_rencana_aksi renaksi ON renaksi.rencana_kinerja_id = rekin.id
-		LEFT JOIN tb_rincian_belanja rinbel ON rinbel.renaksi_id = renaksi.id
 		WHERE rekin.kode_opd = pokin.kode_opd AND pokin.id = ?`
 
 	rows, err := db.Query(query, idPokin)
@@ -199,7 +236,6 @@ func getRencanaKinerjaPokin(idPokin int, jenisPohon string) ([]PelaksanaPokin, e
 	for rows.Next() {
 		var rekin RencanaKinerjaAsn
 		var kodeSub, namaSub sql.NullString
-		var pagu sql.NullInt64
 
 		if err := rows.Scan(
 			&rekin.IdRekin,
@@ -208,7 +244,6 @@ func getRencanaKinerjaPokin(idPokin int, jenisPohon string) ([]PelaksanaPokin, e
 			&rekin.NIPPelaksana,
 			&kodeSub,
 			&namaSub,
-			&pagu,
 			&rekin.Catatan,
 		); err != nil {
 			log.Printf("[ERROR] scan rekin error: %v", err)
@@ -222,8 +257,9 @@ func getRencanaKinerjaPokin(idPokin int, jenisPohon string) ([]PelaksanaPokin, e
 		if namaSub.Valid {
 			rekin.NamaSubkegiatan = namaSub.String
 		}
-		if pagu.Valid {
-			rekin.Pagu = Pagu(pagu.Int64)
+
+		if p, ok := paguMap[rekin.IdRekin]; ok {
+			rekin.Pagu = p
 		}
 
 		rekin.KodeBidangUrusan = "-"
