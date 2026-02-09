@@ -392,6 +392,7 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
             opd.nama_opd,
             tag.keterangan_tagging,
             pokin.status,
+            prog.id as id_program_unggulan,
             prog.kode_program_unggulan,
             prog.keterangan_program_unggulan,
             pokin.keterangan
@@ -426,19 +427,26 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 			namaOpd             sql.NullString
 			keteranganTagging   sql.NullString
 			status              sql.NullString
+			puId                sql.NullInt64
 			kodeProgramUnggulan sql.NullString
 			namaProgramUnggulan sql.NullString
 			keterangan          sql.NullString
 		)
 
-		if err := rows.Scan(&idPohon, &namaPohon, &tahun, &jenisPohon, &kodeOpd, &namaOpd, &keteranganTagging, &status, &kodeProgramUnggulan, &namaProgramUnggulan, &keterangan); err != nil {
+		if err := rows.Scan(&idPohon, &namaPohon, &tahun, &jenisPohon, &kodeOpd, &namaOpd, &keteranganTagging, &status, &puId, &kodeProgramUnggulan, &namaProgramUnggulan, &keterangan); err != nil {
 			http.Error(w, "scan error: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		strJenisPohon := toStr(jenisPohon)
 
+		var idProgramUnggulan int
+		if puId.Valid {
+			idProgramUnggulan = int(puId.Int64)
+		}
+
 		po := Pokin{
+			IdProgramUnggulan:   idProgramUnggulan,
 			KodeProgramUnggulan: toStr(kodeProgramUnggulan),
 			NamaProgramUnggulan: toStr(namaProgramUnggulan),
 			IdPohon:             idPohon,
@@ -672,6 +680,7 @@ func getDetailBatchHandler(w http.ResponseWriter, r *http.Request) {
 
 	query := fmt.Sprintf(`
         SELECT
+            pu.id as id_program_unggulan,
             ket.kode_program_unggulan,
             pu.nama_tagging,
             pu.keterangan_program_unggulan,
@@ -727,6 +736,7 @@ func getDetailBatchHandler(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var (
 			pok         Pokin
+			puId        sql.NullInt64
 			indId       sql.NullString
 			indikator   sql.NullString
 			tgtId       sql.NullString
@@ -743,6 +753,7 @@ func getDetailBatchHandler(w http.ResponseWriter, r *http.Request) {
 		)
 
 		err := rows.Scan(
+			&puId,
 			&pok.KodeProgramUnggulan,
 			&pok.NamaProgramUnggulan,
 			&pok.RencanaImplementasi,
@@ -771,11 +782,16 @@ func getDetailBatchHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "scan error: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
+		var idProgramUnggulan int
+		if puId.Valid {
+			idProgramUnggulan = int(puId.Int64)
+		}
 
 		// Ambil pokin atau buat baru
 		existing, ok := pokinMap[pok.IdPohon]
 		if !ok {
 			existing = &Pokin{
+				IdProgramUnggulan:   idProgramUnggulan,
 				KodeProgramUnggulan: pok.KodeProgramUnggulan,
 				NamaProgramUnggulan: pok.NamaProgramUnggulan,
 				RencanaImplementasi: pok.RencanaImplementasi,
