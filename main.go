@@ -168,6 +168,55 @@ func getPelaksanaanRenaksi(idRekin string) (WaktuPelaksanaan, error) {
 	return result, nil
 }
 
+func getPaguByPokinIds(idPokins []int) (map[string]Pagu, error) {
+	if len(idPokins) == 0 {
+		return map[string]Pagu{}, nil
+	}
+
+	placeholders := make([]string, len(idPokins))
+	args := make([]any, len(idPokins))
+
+	for i, id := range idPokins {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+		SELECT
+			rekin.id,
+			SUM(rinbel.anggaran) AS total_pagu
+		FROM tb_rencana_kinerja rekin
+		JOIN tb_pohon_kinerja pokin ON rekin.id_pohon = pokin.id
+		JOIN tb_rencana_aksi renaksi ON renaksi.rencana_kinerja_id = rekin.id
+		JOIN tb_rincian_belanja rinbel ON rinbel.renaksi_id = renaksi.id
+		WHERE pokin.id IN (%s)
+		GROUP BY rekin.id
+	`, strings.Join(placeholders, ","))
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]Pagu)
+
+	for rows.Next() {
+		var id string
+		var total sql.NullInt64
+
+		if err := rows.Scan(&id, &total); err != nil {
+			return nil, err
+		}
+
+		if total.Valid {
+			result[id] = Pagu(total.Int64)
+		}
+	}
+
+	return result, nil
+}
+
 func getPaguByPokin(idPokin int) (map[string]Pagu, error) {
 	query := `
 		SELECT
@@ -197,6 +246,151 @@ func getPaguByPokin(idPokin int) (map[string]Pagu, error) {
 		}
 		if total.Valid {
 			result[id] = Pagu(total.Int64)
+		}
+	}
+
+	return result, nil
+}
+
+type IdPokinsJenisPohon struct {
+	idPokin    int
+	jenisPohon string
+}
+
+func getRencanaKinerjaByIdPokins(req []IdPokinsJenisPohon) (map[int][]PelaksanaPokin, error) {
+	result := make(map[int][]PelaksanaPokin)
+
+	if len(req) == 0 {
+		return result, nil
+	}
+
+	// map pokin → jenis
+	jenisMap := make(map[int]string)
+	var idPokins []int
+
+	for _, r := range req {
+		idPokins = append(idPokins, r.idPokin)
+		jenisMap[r.idPokin] = r.jenisPohon
+	}
+
+	// pagu batch
+	paguMap, err := getPaguByPokinIds(idPokins)
+	if err != nil {
+		return nil, err
+	}
+
+	// placeholder query
+	placeholders := make([]string, len(idPokins))
+	args := make([]any, len(idPokins))
+
+	for i, id := range idPokins {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+	SELECT DISTINCT
+	       pokin.id,
+	       rekin.id,
+	       rekin.nama_rencana_kinerja,
+	       pegawai.nama,
+	       pegawai.nip,
+	       subkegiatan.kode_subkegiatan,
+	       subkegiatan.nama_subkegiatan,
+	       rekin.catatan
+	FROM tb_rencana_kinerja rekin
+	JOIN tb_pegawai pegawai ON pegawai.nip = rekin.pegawai_id
+	JOIN tb_pohon_kinerja pokin ON rekin.id_pohon = pokin.id
+	LEFT JOIN tb_subkegiatan_terpilih sub_rekin ON sub_rekin.rekin_id = rekin.id
+	LEFT JOIN tb_subkegiatan subkegiatan ON subkegiatan.kode_subkegiatan = sub_rekin.kode_subkegiatan
+	WHERE rekin.kode_opd = pokin.kode_opd
+	AND pokin.id IN (%s)
+	`, strings.Join(placeholders, ","))
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// pokin → nip → pelaksana
+	pelaksanaMap := make(map[int]map[string]*PelaksanaPokin)
+	seen := make(map[int]map[string]map[string]Pagu)
+
+	for rows.Next() {
+
+		var pokinId int
+		var rekin RencanaKinerjaAsn
+		var kodeSub, namaSub sql.NullString
+
+		if err := rows.Scan(
+			&pokinId,
+			&rekin.IdRekin,
+			&rekin.RencanaKinerja,
+			&rekin.NamaPelaksana,
+			&rekin.NIPPelaksana,
+			&kodeSub,
+			&namaSub,
+			&rekin.Catatan,
+		); err != nil {
+			return nil, err
+		}
+
+		if kodeSub.Valid {
+			rekin.KodeSubkegiatan = kodeSub.String
+		}
+		if namaSub.Valid {
+			rekin.NamaSubkegiatan = namaSub.String
+		}
+
+		if p, ok := paguMap[rekin.IdRekin]; ok {
+			rekin.Pagu = p
+		}
+
+		// init maps
+		if _, ok := pelaksanaMap[pokinId]; !ok {
+			pelaksanaMap[pokinId] = make(map[string]*PelaksanaPokin)
+			seen[pokinId] = make(map[string]map[string]Pagu)
+		}
+
+		key := rekin.NIPPelaksana
+
+		if _, ok := pelaksanaMap[pokinId][key]; !ok {
+			pelaksanaMap[pokinId][key] = &PelaksanaPokin{
+				NamaPelaksana: rekin.NamaPelaksana,
+				NIPPelaksana:  rekin.NIPPelaksana,
+			}
+			seen[pokinId][key] = make(map[string]Pagu)
+		}
+
+		if existing, ok := seen[pokinId][key][rekin.IdRekin]; ok {
+
+			seen[pokinId][key][rekin.IdRekin] = existing + rekin.Pagu
+
+			for i := range pelaksanaMap[pokinId][key].RencanaKinerjas {
+				if pelaksanaMap[pokinId][key].RencanaKinerjas[i].IdRekin == rekin.IdRekin {
+					pelaksanaMap[pokinId][key].RencanaKinerjas[i].Pagu =
+						seen[pokinId][key][rekin.IdRekin]
+				}
+			}
+
+		} else {
+
+			seen[pokinId][key][rekin.IdRekin] = rekin.Pagu
+			pelaksanaMap[pokinId][key].RencanaKinerjas =
+				append(pelaksanaMap[pokinId][key].RencanaKinerjas, rekin)
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// convert map
+	for pokinId, pelaksanas := range pelaksanaMap {
+
+		for _, p := range pelaksanas {
+			result[pokinId] = append(result[pokinId], *p)
 		}
 	}
 
@@ -416,6 +610,7 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	// List Pokin
+	var reqPelaksana []IdPokinsJenisPohon
 	var listPokin []Pokin
 	for rows.Next() {
 		var (
@@ -460,17 +655,23 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 			Keterangan:          toStr(keterangan),
 		}
 
-		// TODO: fix to use batch
-		pelaksanas, err := getRencanaKinerjaPokin(po.IdPohon, strJenisPohon)
-		if err != nil {
-			log.Printf("[ERROR] Get Rekin Pokin %d error: %v", po.IdPohon, err)
-			return
-		}
-
-		po.Pelaksanas = pelaksanas
+		// untuk req pelaksana
+		reqPelaksana = append(reqPelaksana, IdPokinsJenisPohon{
+			idPokin:    idPohon,
+			jenisPohon: strJenisPohon,
+		})
 
 		listPokin = append(listPokin, po)
 	}
+	pelaksanas, err := getRencanaKinerjaByIdPokins(reqPelaksana)
+	if err != nil {
+		log.Printf("[ERROR] Get Rekin Pokin error: %v", err)
+		return
+	}
+	for i := range listPokin {
+		listPokin[i].Pelaksanas = pelaksanas[listPokin[i].IdPohon]
+	}
+
 	// bungkus
 	tagPokin := TagPokin{
 		NamaTagging:   tag,
