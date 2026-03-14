@@ -523,6 +523,114 @@ func getRencanaKinerjaPokin(idPokin int, jenisPohon string) ([]PelaksanaPokin, e
 	return pelaksanas, nil
 }
 
+func getIndikatorPokinbyIdPokins(idPokins []int) (map[int][]IndikatorPohon, error) {
+	result := make(map[int][]IndikatorPohon)
+
+	if len(idPokins) == 0 {
+		return result, nil
+	}
+
+	placeholders := make([]string, len(idPokins))
+	args := make([]any, len(idPokins))
+
+	for i, id := range idPokins {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+	SELECT
+		ind.id,
+		ind.pokin_id,
+		ind.indikator,
+		tgt.id,
+		tgt.target,
+		tgt.satuan,
+		tgt.tahun
+	FROM tb_indikator ind
+	LEFT JOIN tb_target tgt ON tgt.indikator_id = ind.id
+	WHERE ind.pokin_id IN (%s)
+	ORDER BY ind.pokin_id, ind.id
+	`, strings.Join(placeholders, ","))
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// untuk deduplicate indikator
+	indikatorMap := make(map[string]*IndikatorPohon)
+
+	for rows.Next() {
+
+		var (
+			indId     string
+			pokinId   int
+			indikator string
+			tgtId     sql.NullString
+			tgtVal    sql.NullString
+			satuan    sql.NullString
+			tahun     sql.NullInt64
+		)
+
+		err := rows.Scan(
+			&indId,
+			&pokinId,
+			&indikator,
+			&tgtId,
+			&tgtVal,
+			&satuan,
+			&tahun,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// unique key indikator
+		key := fmt.Sprintf("%d-%s", pokinId, indId)
+
+		ind, exists := indikatorMap[key]
+		if !exists {
+
+			newInd := IndikatorPohon{
+				IdIndikator: indId,
+				IdPokin:     strconv.Itoa(pokinId),
+				Indikator:   indikator,
+				Target:      []TargetIndikator{},
+			}
+
+			indikatorMap[key] = &newInd
+			result[pokinId] = append(result[pokinId], newInd)
+
+			ind = &result[pokinId][len(result[pokinId])-1]
+		}
+
+		// tambah target jika ada
+		if tgtId.Valid {
+
+			target := TargetIndikator{
+				IdTarget:    tgtId.String,
+				IndikatorId: indId,
+				Target:      tgtVal.String,
+				Satuan:      satuan.String,
+			}
+
+			if tahun.Valid {
+				target.Tahun = int(tahun.Int64)
+			}
+
+			ind.Target = append(ind.Target, target)
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 func laporanHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed, pakai GET", http.StatusMethodNotAllowed)
@@ -670,6 +778,19 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	for i := range listPokin {
 		listPokin[i].Pelaksanas = pelaksanas[listPokin[i].IdPohon]
+	}
+
+	idPokins := make([]int, len(reqPelaksana))
+	for i, r := range reqPelaksana {
+		idPokins[i] = r.idPokin
+	}
+	indikatorPokins, err := getIndikatorPokinbyIdPokins(idPokins)
+	if err != nil {
+		log.Printf("[ERROR] Get INDIKATOR Pokin error: %v", err)
+		return
+	}
+	for i := range idPokins {
+		listPokin[i].Indikator = indikatorPokins[listPokin[i].IdPohon]
 	}
 
 	// bungkus
