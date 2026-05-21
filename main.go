@@ -696,7 +696,7 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
             pokin.status,
             prog.id as id_program_unggulan,
             prog.kode_program_unggulan,
-            prog.keterangan_program_unggulan,
+            prog.nama_tagging,
             pokin.keterangan
         FROM tb_pohon_kinerja pokin
         JOIN tb_operasional_daerah opd ON opd.kode_opd = pokin.kode_opd
