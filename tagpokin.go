@@ -33,12 +33,12 @@ type Pokin struct {
 	Status              string           `json:"status"`
 	Pelaksanas          []PelaksanaPokin `json:"pelaksanas"`
 	Keterangan          string           `json:"keterangan"`
-	Indikator           []IndikatorPohon `json:"indikator,omitempty"`
+	Indikator           []IndikatorPohon `json:"indikator"`
 }
 
 type IndikatorPohon struct {
 	IdIndikator string            `json:"id_indikator"`
-	IdPokin     string            `json:"id_pokin,omitempty"`
+	IdPokin     string            `json:"id_pokin"`
 	Indikator   string            `json:"nama_indikator"`
 	Kode        string            `json:"kode"`
 	Target      []TargetIndikator `json:"targets"`
@@ -49,7 +49,7 @@ type TargetIndikator struct {
 	IndikatorId string `json:"indikator_id"`
 	Target      string `json:"target"`
 	Satuan      string `json:"satuan"`
-	Tahun       int    `json:"tahun,omitempty"`
+	Tahun       int    `json:"tahun"`
 }
 
 type PelaksanaPokin struct {
@@ -69,13 +69,13 @@ type RencanaKinerjaAsn struct {
 	RencanaKinerja     string             `json:"rencana_kinerja"`
 	NamaPelaksana      string             `json:"nama_pelaksana"`
 	NIPPelaksana       string             `json:"nip_pelaksana"`
-	KodeBidangUrusan   string             `json:"kode_bidang_urusan,omitempty"`
-	NamaBidangUrusan   string             `json:"nama_bidang_urusan,omitempty"`
-	KodeProgram        string             `json:"kode_program,omitempty"`
-	NamaProgram        string             `json:"nama_program,omitempty"`
-	IndikatorPrograms  []IndikatorProgram `json:"indikator_programs,omitempty"`
-	KodeSubkegiatan    string             `json:"kode_subkegiatan,omitempty"`
-	NamaSubkegiatan    string             `json:"nama_subkegiatan,omitempty"`
+	KodeBidangUrusan   string             `json:"kode_bidang_urusan"`
+	NamaBidangUrusan   string             `json:"nama_bidang_urusan"`
+	KodeProgram        string             `json:"kode_program"`
+	NamaProgram        string             `json:"nama_program"`
+	IndikatorPrograms  []IndikatorProgram `json:"indikator_programs"`
+	KodeSubkegiatan    string             `json:"kode_subkegiatan"`
+	NamaSubkegiatan    string             `json:"nama_subkegiatan"`
 	Pagu               Pagu               `json:"pagu"`
 	Catatan            string             `json:"keterangan"`
 	TahapanPelaksanaan WaktuPelaksanaan   `json:"tahapan_pelaksanaan"`
