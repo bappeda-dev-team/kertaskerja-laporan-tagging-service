@@ -672,6 +672,8 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
             pokin.status,
             rb.id,
             rb.kegiatan_utama,
+	    '-',
+	    '-',
             pokin.keterangan
         FROM tb_pohon_kinerja pokin
         JOIN tb_operasional_daerah opd ON opd.kode_opd = pokin.kode_opd
@@ -697,6 +699,7 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
             prog.id as id_program_unggulan,
             prog.kode_program_unggulan,
             prog.nama_tagging,
+	    prog.keterangan_program_unggulan,
             pokin.keterangan
         FROM tb_pohon_kinerja pokin
         JOIN tb_operasional_daerah opd ON opd.kode_opd = pokin.kode_opd
@@ -733,10 +736,11 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 			puId                sql.NullInt64
 			kodeProgramUnggulan sql.NullString
 			namaProgramUnggulan sql.NullString
+			rencanaImplementasi sql.NullString
 			keterangan          sql.NullString
 		)
 
-		if err := rows.Scan(&idPohon, &namaPohon, &tahun, &jenisPohon, &kodeOpd, &namaOpd, &keteranganTagging, &status, &puId, &kodeProgramUnggulan, &namaProgramUnggulan, &keterangan); err != nil {
+		if err := rows.Scan(&idPohon, &namaPohon, &tahun, &jenisPohon, &kodeOpd, &namaOpd, &keteranganTagging, &status, &puId, &kodeProgramUnggulan, &namaProgramUnggulan, &rencanaImplementasi, &keterangan); err != nil {
 			http.Error(w, "scan error: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -758,7 +762,7 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 			JenisPohon:          JenisPohon(strJenisPohon),
 			KodeOpd:             toStr(kodeOpd),
 			NamaOpd:             toStr(namaOpd),
-			RencanaImplementasi: toStr(keteranganTagging),
+			RencanaImplementasi: toStr(rencanaImplementasi),
 			KeteranganTagging:   toStr(keteranganTagging),
 			Status:              toStr(status),
 			Keterangan:          toStr(keterangan),
