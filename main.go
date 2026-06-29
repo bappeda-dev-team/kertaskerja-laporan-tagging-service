@@ -297,12 +297,15 @@ func getRencanaKinerjaByIdPokins(req []IdPokinsJenisPohon) (map[int][]PelaksanaP
 	       pegawai.nip,
 	       subkegiatan.kode_subkegiatan,
 	       subkegiatan.nama_subkegiatan,
+	       prog.kode_program,
+               prog.nama_program,
 	       rekin.catatan
 	FROM tb_rencana_kinerja rekin
 	JOIN tb_pegawai pegawai ON pegawai.nip = rekin.pegawai_id
 	JOIN tb_pohon_kinerja pokin ON rekin.id_pohon = pokin.id
 	LEFT JOIN tb_subkegiatan_terpilih sub_rekin ON sub_rekin.rekin_id = rekin.id
 	LEFT JOIN tb_subkegiatan subkegiatan ON subkegiatan.kode_subkegiatan = sub_rekin.kode_subkegiatan
+        LEFT JOIN tb_master_program prog ON prog.kode_program = SUBSTRING_INDEX(sub_rekin.kode_subkegiatan, '.', 3)
 	WHERE rekin.kode_opd = pokin.kode_opd
 	AND pokin.id IN (%s)
 	`, strings.Join(placeholders, ","))
@@ -321,7 +324,8 @@ func getRencanaKinerjaByIdPokins(req []IdPokinsJenisPohon) (map[int][]PelaksanaP
 
 		var pokinId int
 		var rekin RencanaKinerjaAsn
-		var kodeSub, namaSub sql.NullString
+		var kodeSub, namaSub,
+			kodePrg, namaPrg sql.NullString
 
 		if err := rows.Scan(
 			&pokinId,
@@ -331,6 +335,8 @@ func getRencanaKinerjaByIdPokins(req []IdPokinsJenisPohon) (map[int][]PelaksanaP
 			&rekin.NIPPelaksana,
 			&kodeSub,
 			&namaSub,
+			&kodePrg,
+			&namaPrg,
 			&rekin.Catatan,
 		); err != nil {
 			return nil, err
@@ -341,6 +347,13 @@ func getRencanaKinerjaByIdPokins(req []IdPokinsJenisPohon) (map[int][]PelaksanaP
 		}
 		if namaSub.Valid {
 			rekin.NamaSubkegiatan = namaSub.String
+		}
+
+		if kodePrg.Valid {
+			rekin.KodeProgram = kodePrg.String
+		}
+		if namaPrg.Valid {
+			rekin.NamaProgram = namaPrg.String
 		}
 
 		if p, ok := paguMap[rekin.IdRekin]; ok {
