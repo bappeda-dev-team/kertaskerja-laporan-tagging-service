@@ -126,6 +126,38 @@ func getProgramByPokinIdParent(idPokinParent int) (Program, error) {
 	return prg, nil
 }
 
+func getIndikatorProgram(kodeProgram string, kodeOpd string, tahun int) ([]IndikatorProgram, error) {
+	rows, err := db.Query(`
+			SELECT im.indikator
+			FROM tb_indikator_matrix im
+			WHERE im.kode = ?
+			AND im.kode_opd = ?
+			AND im.tahun  = ?
+			AND im.jenis  = 'penetapan'
+			ORDER BY im.kode_indikator
+	`, kodeProgram, kodeOpd, tahun)
+	if err != nil {
+		return nil, fmt.Errorf("query error: %w", err)
+	}
+
+	defer rows.Close()
+
+	indikators := make([]IndikatorProgram, 0)
+	var indPrg IndikatorProgram
+	for rows.Next() {
+		if err := rows.Scan(&indPrg.Indikator); err != nil {
+			if err == sql.ErrNoRows {
+				return nil, nil
+			}
+			return nil, fmt.Errorf("query error: %w", err)
+		}
+
+		indikators = append(indikators, indPrg)
+	}
+
+	return indikators, nil
+}
+
 func getPelaksanaanRenaksi(idRekin string) (WaktuPelaksanaan, error) {
 	query := `
 		SELECT renaksi.bulan, renaksi.bobot
@@ -257,7 +289,7 @@ type IdPokinsJenisPohon struct {
 	jenisPohon string
 }
 
-func getRencanaKinerjaByIdPokins(req []IdPokinsJenisPohon) (map[int][]PelaksanaPokin, error) {
+func getRencanaKinerjaByIdPokins(req []IdPokinsJenisPohon, tahun int) (map[int][]PelaksanaPokin, error) {
 	result := make(map[int][]PelaksanaPokin)
 
 	if len(req) == 0 {
@@ -299,7 +331,8 @@ func getRencanaKinerjaByIdPokins(req []IdPokinsJenisPohon) (map[int][]PelaksanaP
 	       subkegiatan.nama_subkegiatan,
 	       prog.kode_program,
                prog.nama_program,
-	       rekin.catatan
+	       rekin.catatan,
+               rekin.kode_opd
 	FROM tb_rencana_kinerja rekin
 	JOIN tb_pegawai pegawai ON pegawai.nip = rekin.pegawai_id
 	JOIN tb_pohon_kinerja pokin ON rekin.id_pohon = pokin.id
@@ -326,6 +359,7 @@ func getRencanaKinerjaByIdPokins(req []IdPokinsJenisPohon) (map[int][]PelaksanaP
 		var rekin RencanaKinerjaAsn
 		var kodeSub, namaSub,
 			kodePrg, namaPrg sql.NullString
+		var kodeOpd string
 
 		if err := rows.Scan(
 			&pokinId,
@@ -338,6 +372,7 @@ func getRencanaKinerjaByIdPokins(req []IdPokinsJenisPohon) (map[int][]PelaksanaP
 			&kodePrg,
 			&namaPrg,
 			&rekin.Catatan,
+			&kodeOpd,
 		); err != nil {
 			return nil, err
 		}
@@ -351,7 +386,15 @@ func getRencanaKinerjaByIdPokins(req []IdPokinsJenisPohon) (map[int][]PelaksanaP
 
 		if kodePrg.Valid {
 			rekin.KodeProgram = kodePrg.String
+
+			indPrograms, err := getIndikatorProgram(rekin.KodeProgram, kodeOpd, tahun)
+			if err != nil {
+				log.Printf("failed to get indikator program %s: %v", rekin.KodeProgram, err)
+			} else {
+				rekin.IndikatorPrograms = indPrograms
+			}
 		}
+
 		if namaPrg.Valid {
 			rekin.NamaProgram = namaPrg.String
 		}
@@ -789,7 +832,7 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 
 		listPokin = append(listPokin, po)
 	}
-	pelaksanas, err := getRencanaKinerjaByIdPokins(reqPelaksana)
+	pelaksanas, err := getRencanaKinerjaByIdPokins(reqPelaksana, tahun)
 	if err != nil {
 		log.Printf("[ERROR] Get Rekin Pokin error: %v", err)
 		return

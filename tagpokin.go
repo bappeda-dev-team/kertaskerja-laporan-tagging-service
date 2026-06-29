@@ -65,19 +65,24 @@ type Subkegiatan struct {
 }
 
 type RencanaKinerjaAsn struct {
-	IdRekin            string           `json:"id_rekin"`
-	RencanaKinerja     string           `json:"rencana_kinerja"`
-	NamaPelaksana      string           `json:"nama_pelaksana"`
-	NIPPelaksana       string           `json:"nip_pelaksana"`
-	KodeBidangUrusan   string           `json:"kode_bidang_urusan,omitempty"`
-	NamaBidangUrusan   string           `json:"nama_bidang_urusan,omitempty"`
-	KodeProgram        string           `json:"kode_program,omitempty"`
-	NamaProgram        string           `json:"nama_program,omitempty"`
-	KodeSubkegiatan    string           `json:"kode_subkegiatan,omitempty"`
-	NamaSubkegiatan    string           `json:"nama_subkegiatan,omitempty"`
-	Pagu               Pagu             `json:"pagu"`
-	Catatan            string           `json:"keterangan"`
-	TahapanPelaksanaan WaktuPelaksanaan `json:"tahapan_pelaksanaan"`
+	IdRekin            string             `json:"id_rekin"`
+	RencanaKinerja     string             `json:"rencana_kinerja"`
+	NamaPelaksana      string             `json:"nama_pelaksana"`
+	NIPPelaksana       string             `json:"nip_pelaksana"`
+	KodeBidangUrusan   string             `json:"kode_bidang_urusan,omitempty"`
+	NamaBidangUrusan   string             `json:"nama_bidang_urusan,omitempty"`
+	KodeProgram        string             `json:"kode_program,omitempty"`
+	NamaProgram        string             `json:"nama_program,omitempty"`
+	IndikatorPrograms  []IndikatorProgram `json:"indikator_programs"`
+	KodeSubkegiatan    string             `json:"kode_subkegiatan,omitempty"`
+	NamaSubkegiatan    string             `json:"nama_subkegiatan,omitempty"`
+	Pagu               Pagu               `json:"pagu"`
+	Catatan            string             `json:"keterangan"`
+	TahapanPelaksanaan WaktuPelaksanaan   `json:"tahapan_pelaksanaan"`
+}
+
+type IndikatorProgram struct {
+	Indikator string `json:"indikator_program"`
 }
 
 type WaktuPelaksanaan struct {
