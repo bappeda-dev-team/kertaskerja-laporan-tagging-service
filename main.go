@@ -854,17 +854,14 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 		listPokin[i].Indikator = indikatorPokins[listPokin[i].IdPohon]
 	}
 
-	// bungkus
-	tagPokin := TagPokin{
-		NamaTagging:   tag,
-		Tahun:         Tahun(tahun),
-		PohonKinerjas: listPokin,
-	}
-
 	response := Response{
 		Status:  http.StatusOK,
 		Message: "Laporan Tagging Pohon Kinerja",
-		Data:    []TagPokin{tagPokin},
+		Data: TagPokin{
+			NamaTagging:   tag,
+			Tahun:         Tahun(tahun),
+			PohonKinerjas: listPokin,
+		},
 	}
 
 	w.Header().Set("Content-Type", "application/json")

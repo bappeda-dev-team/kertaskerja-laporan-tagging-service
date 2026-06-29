@@ -6,9 +6,9 @@ type Keterangan string
 type Pagu int
 
 type Response struct {
-	Status  int         `json:"status"`
-	Message string      `json:"message"`
-	Data    interface{} `json:"data"`
+	Status  int    `json:"status"`
+	Message string `json:"message"`
+	Data    any    `json:"data"`
 }
 
 type TagPokin struct {
@@ -73,7 +73,7 @@ type RencanaKinerjaAsn struct {
 	NamaBidangUrusan   string             `json:"nama_bidang_urusan,omitempty"`
 	KodeProgram        string             `json:"kode_program,omitempty"`
 	NamaProgram        string             `json:"nama_program,omitempty"`
-	IndikatorPrograms  []IndikatorProgram `json:"indikator_programs"`
+	IndikatorPrograms  []IndikatorProgram `json:"indikator_programs,omitempty"`
 	KodeSubkegiatan    string             `json:"kode_subkegiatan,omitempty"`
 	NamaSubkegiatan    string             `json:"nama_subkegiatan,omitempty"`
 	Pagu               Pagu               `json:"pagu"`
