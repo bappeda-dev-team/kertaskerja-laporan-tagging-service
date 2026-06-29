@@ -758,6 +758,7 @@ func laporanHandler(w http.ResponseWriter, r *http.Request) {
 			JenisPohon:          JenisPohon(strJenisPohon),
 			KodeOpd:             toStr(kodeOpd),
 			NamaOpd:             toStr(namaOpd),
+			RencanaImplementasi: toStr(keteranganTagging),
 			KeteranganTagging:   toStr(keteranganTagging),
 			Status:              toStr(status),
 			Keterangan:          toStr(keterangan),
